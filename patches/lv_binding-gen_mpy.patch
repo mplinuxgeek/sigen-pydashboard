@@ -1,0 +1,98 @@
+diff --git a/gen/gen_mpy.py b/gen/gen_mpy.py
+index ee61a87..cf4f05b 100644
+--- a/gen/gen_mpy.py
++++ b/gen/gen_mpy.py
+@@ -1338,12 +1338,21 @@ MP_REGISTER_ROOT_POINTER(void *mp_lv_roots);
+ MP_REGISTER_ROOT_POINTER(void *mp_lv_user_data);
+ MP_REGISTER_ROOT_POINTER(int mp_lv_roots_initialized);
+ MP_REGISTER_ROOT_POINTER(int lvgl_mod_initialized);
++MP_REGISTER_ROOT_POINTER(mp_obj_t mp_lv_error_hook);
+ 
+ void *mp_lv_roots;
+ void *mp_lv_user_data;
+ int mp_lv_roots_initialized = 0;
+ int lvgl_mod_initialized = 0;
+ 
++/* lv.set_error_hook(fn): fn(callback_name, exception) is called whenever a Python callback raised
++   (the exception itself is swallowed after printing so LVGL's C state stays consistent). */
++static mp_obj_t lvgl_mod_set_error_hook(mp_obj_t fn) {
++    MP_STATE_VM(mp_lv_error_hook) = (fn == mp_const_none) ? MP_OBJ_NULL : fn;
++    return mp_const_none;
++}
++static MP_DEFINE_CONST_FUN_OBJ_1(lvgl_mod_set_error_hook_obj, lvgl_mod_set_error_hook);
++
+ void mp_lv_log_cb(lv_log_level_t level, const char * buf){
+ 
+     mp_printf(&mp_plat_print, buf);
+@@ -1832,7 +1841,7 @@ static unsigned long long mp_obj_get_ull(mp_obj_t obj)
+ 
+     unsigned long long val = 0;
+     bool big_endian = !(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__);
+-    mp_obj_int_to_bytes_impl(obj, big_endian, sizeof(val), (byte*)&val);
++    mp_obj_int_to_bytes(obj, sizeof(val), (byte*)&val, big_endian, true, false);
+     return val;
+ }
+ 
+@@ -2929,9 +2938,33 @@ GENMPY_UNUSED static {return_type} {func_name}_callback({func_args})
+     {build_args}
+     mp_obj_t callbacks = get_callback_dict_from_user_data({user_data});
+     _nesting++;
+-    {return_value_assignment}mp_call_function_n_kw(mp_obj_dict_get(callbacks, MP_OBJ_NEW_QSTR(MP_QSTR_{func_name})) , {num_args}, 0, mp_args);
+-    _nesting--;
+-    return{return_value};
++    /* Never let a Python exception unwind through LVGL's C code: it would leave lv_timer_handler's
++       "already_running" flag set and freeze the UI for good. Print the exception and carry on. */
++    nlr_buf_t nlr;
++    if (nlr_push(&nlr) == 0) {{
++        {return_value_assignment}mp_call_function_n_kw(mp_obj_dict_get(callbacks, MP_OBJ_NEW_QSTR(MP_QSTR_{func_name})) , {num_args}, 0, mp_args);
++        {return_value_local}
++        nlr_pop();
++        _nesting--;
++        return{return_value_ret};
++    }} else {{
++        _nesting--;
++        mp_obj_t exc = MP_OBJ_FROM_PTR(nlr.ret_val);
++        if (mp_obj_is_subclass_fast(MP_OBJ_FROM_PTR(mp_obj_get_type(exc)), MP_OBJ_FROM_PTR(&mp_type_KeyboardInterrupt))
++            || mp_obj_is_subclass_fast(MP_OBJ_FROM_PTR(mp_obj_get_type(exc)), MP_OBJ_FROM_PTR(&mp_type_SystemExit))) {{
++            nlr_jump(nlr.ret_val);      /* Ctrl-C from the REPL / sys.exit must still stop the program */
++        }}
++        mp_printf(&mp_plat_print, "Exception in {func_name} callback:\\n");
++        mp_obj_print_exception(&mp_plat_print, exc);
++        if (MP_STATE_VM(mp_lv_error_hook) != MP_OBJ_NULL) {{
++            nlr_buf_t nlr2;
++            if (nlr_push(&nlr2) == 0) {{
++                mp_call_function_2(MP_STATE_VM(mp_lv_error_hook), mp_obj_new_str("{func_name}", strlen("{func_name}")), exc);
++                nlr_pop();
++            }}
++        }}
++        {return_zero}
++    }}
+ }}
+ """.format(
+             func_prototype=gen.visit(func),
+@@ -2949,9 +2982,15 @@ GENMPY_UNUSED static {return_type} {func_name}_callback({func_args})
+             return_value_assignment=""
+             if return_type == "void"
+             else "mp_obj_t callback_result = ",
+-            return_value=""
++            return_value_local=""
++            if return_type == "void"
++            else "%s ret_val = %s(callback_result);" % (return_type, mp_to_lv[return_type]),
++            return_value_ret=""
++            if return_type == "void"
++            else " ret_val",
++            return_zero=""
+             if return_type == "void"
+-            else " %s(callback_result)" % mp_to_lv[return_type],
++            else "%s zero_ret; memset(&zero_ret, 0, sizeof(zero_ret)); return zero_ret;" % return_type,
+         )
+     )
+     generated_callbacks[func_name] = True
+@@ -3687,6 +3726,7 @@ static const mp_rom_map_elem_t {module_name}_globals_table[] = {{
+     {{ MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_{module_name}) }},
+     {{ MP_ROM_QSTR(MP_QSTR___init__), MP_ROM_PTR(&lvgl_mod___init___obj) }},
+     {{ MP_ROM_QSTR(MP_QSTR___del__), MP_ROM_PTR(&lvgl_mod___del___obj) }},
++    {{ MP_ROM_QSTR(MP_QSTR_set_error_hook), MP_ROM_PTR(&lvgl_mod_set_error_hook_obj) }},
+     {objects}
+     {functions}
+     {enums}

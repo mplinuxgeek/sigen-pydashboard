@@ -1,0 +1,5 @@
+board_s3_7/sdkconfig.paths
+micropython/
+lv_binding_micropython/
+*.log
+__pycache__/

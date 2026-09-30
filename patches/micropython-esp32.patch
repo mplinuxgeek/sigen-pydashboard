@@ -1,0 +1,52 @@
+diff --git a/ports/esp32/esp32_common.cmake b/ports/esp32/esp32_common.cmake
+index fee776f..034f73e 100644
+--- a/ports/esp32/esp32_common.cmake
++++ b/ports/esp32/esp32_common.cmake
+@@ -169,6 +169,11 @@ list(APPEND IDF_COMPONENTS
+     esp_adc
+     esp_app_format
+     esp_mm
++    esp_lcd
++    esp_driver_ledc
++    esp_driver_gpio
++    esp_driver_i2c
++    esp_driver_spi
+     esp_common
+     esp_driver_gptimer
+     esp_eth
+diff --git a/ports/esp32/lockfiles/dependencies.lock.esp32s3 b/ports/esp32/lockfiles/dependencies.lock.esp32s3
+index a57ac9a..cacf5a3 100644
+--- a/ports/esp32/lockfiles/dependencies.lock.esp32s3
++++ b/ports/esp32/lockfiles/dependencies.lock.esp32s3
+@@ -27,7 +27,7 @@ dependencies:
+   idf:
+     source:
+       type: idf
+-    version: 5.5.2
++    version: 5.5.4
+ direct_dependencies:
+ - espressif/mdns
+ - espressif/tinyusb
+diff --git a/ports/esp32/main.c b/ports/esp32/main.c
+index 697f4ef..8cd6970 100644
+--- a/ports/esp32/main.c
++++ b/ports/esp32/main.c
+@@ -184,6 +184,18 @@ soft_reset:
+ 
+ soft_reset_exit:
+ 
++    #ifdef MICROPY_HW_HAS_LVGL
++    // LVGL keeps state in C statics outside its (GC heap) global struct (default theme, ...), so a soft reset
++    // cannot restart it cleanly: display_create() then allocates garbage sizes. When the UI has been running,
++    // a soft reset (Ctrl-D, machine.soft_reset) is therefore turned into a full chip restart.
++    {
++        extern bool lv_is_initialized(void);
++        if (lv_is_initialized()) {
++            esp_restart();
++        }
++    }
++    #endif
++
+     #if MICROPY_BLUETOOTH_NIMBLE
+     mp_bluetooth_deinit();
+     #endif

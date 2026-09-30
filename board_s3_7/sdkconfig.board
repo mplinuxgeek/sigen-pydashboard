@@ -1,0 +1,27 @@
+# ---- flash: 8 MB ----
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+
+# ---- PSRAM: octal 80 MHz. Run code + rodata from PSRAM so internal SRAM is left for the heap/stacks/DMA ----
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_FETCH_INSTRUCTIONS=y
+CONFIG_SPIRAM_RODATA=y
+# Small allocations stay in internal RAM (fast), everything bigger goes to PSRAM; keep some internal free for DMA/WiFi.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768
+CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y
+
+# ---- RGB panel: keep the bounce-buffer refill ISR alive during flash writes (needs the PSRAM XIP options above) ----
+CONFIG_LCD_RGB_ISR_IRAM_SAFE=y
+
+# ---- WiFi: static TX buffers are recommended when PSRAM is enabled ----
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=16
+
+# Sockets: polling + API server + NTP need more than the default 10
+CONFIG_LWIP_MAX_SOCKETS=16
+
+# Watchdogs: flash writes can starve the idle task while the panel scans out of PSRAM
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=45
+CONFIG_ESP_INT_WDT_TIMEOUT_MS=10000
