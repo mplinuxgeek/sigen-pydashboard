@@ -5,6 +5,11 @@ from . import common as C
 from core import modbus
 
 
+def board_w():
+    import board
+    return board.W
+
+
 class ModbusSetup:
     def __init__(self, app, on_done):
         self.app, self.on_done = app, on_done
@@ -16,16 +21,17 @@ class ModbusSetup:
         ov.set_style_pad_row(10, 0)
         C.label(ov, "Set up your SigenStor", 24, C.TEXT)
         C.label(ov, "Enter the IP address of your Sigenergy device on this network. You can change this later from Settings.",
-                16, C.MUTED, wrap_w=770)
+                16, C.MUTED, wrap_w=board_w() - 30)
         row = lv.obj(ov)
         row.remove_style_all()
         row.set_size(lv.pct(100), lv.SIZE_CONTENT)
         row.set_flex_grow(1)
-        row.set_flex_flow(lv.FLEX_FLOW.ROW)
+        import board
+        row.set_flex_flow(lv.FLEX_FLOW.COLUMN if board.portrait else lv.FLEX_FLOW.ROW)
         row.set_style_pad_column(16, 0)
         left = lv.obj(row)
         left.remove_style_all()
-        left.set_size(lv.pct(50), lv.pct(100))
+        left.set_size(lv.pct(100) if board.portrait else lv.pct(50), lv.SIZE_CONTENT if board.portrait else lv.pct(100))
         left.set_flex_flow(lv.FLEX_FLOW.COLUMN)
         left.set_style_pad_row(10, 0)
         self.ip = self._field(left, "IP address", "0123456789.", modbus.DEFAULT_IP)
@@ -41,7 +47,7 @@ class ModbusSetup:
         C.button(btns, "Continue", C.ACCENT, C.ACCENT_TEXT, self.cont).set_flex_grow(1)
         right = lv.obj(row)
         right.remove_style_all()
-        right.set_size(lv.pct(50), lv.pct(100))
+        right.set_size(lv.pct(100) if board.portrait else lv.pct(50), lv.pct(100))
         right.set_flex_grow(1)
         right.set_flex_flow(lv.FLEX_FLOW.COLUMN)
         self.kb = C.num_keyboard(right, self.ip)

@@ -14,7 +14,7 @@ def quality(rssi):
 
 
 class WifiPage:
-    def __init__(self, parent, app, on_connected=None):
+    def __init__(self, parent, app, on_connected=None, title=None):
         self.app, self.wifi = app, app.services["wifi"]
         self.on_connected = on_connected
         self.results = []
@@ -29,6 +29,8 @@ class WifiPage:
         parent.set_flex_flow(lv.FLEX_FLOW.COLUMN)
         parent.set_style_pad_all(12, 0)
         parent.set_style_pad_row(8, 0)
+        if title:
+            C.label(parent, title, 24, C.TEXT)
         top = lv.obj(parent)
         top.remove_style_all()
         top.set_size(lv.pct(100), lv.SIZE_CONTENT)

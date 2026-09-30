@@ -24,6 +24,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "esp_heap_caps.h"
 
 #define LCD_H_RES 800
 #define LCD_V_RES 480
@@ -168,6 +169,86 @@ static mp_obj_t rgb_lcd_vsync_waits(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_vsync_waits_obj, 0, 1, rgb_lcd_vsync_waits);
 
+
+// buffer(nbytes): permanent DMA-capable internal-SRAM buffer as a memoryview (LVGL draw buffer for the rotated
+// portrait mode: strided reads while rotating are far cheaper from SRAM than from PSRAM).
+static mp_obj_t rgb_lcd_buffer(mp_obj_t n_obj) {
+    size_t n = mp_obj_get_int(n_obj);
+    void *p = heap_caps_malloc(n, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (!p) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("internal RAM buffer"));
+    }
+    memset(p, 0, n);
+    return mp_obj_new_memoryview(MP_OBJ_ARRAY_TYPECODE_FLAG_RW | 'B', n, p);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(rgb_lcd_buffer_obj, rgb_lcd_buffer);
+
+// blit_rot(src, x1, y1, x2, y2, idx, ccw): copy the logical (portrait 480x800) area x1..x2 / y1..y2 held row-major in src
+// into frame buffer idx of the 800x480 panel, rotated 90 degrees (clockwise unless ccw). Returns the physical
+// rectangle written as (X1, Y1, X2, Y2).
+static mp_obj_t rgb_lcd_blit_rot(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t bi;
+    mp_get_buffer_raise(args[0], &bi, MP_BUFFER_READ);
+    int x1 = mp_obj_get_int(args[1]), y1 = mp_obj_get_int(args[2]);
+    int x2 = mp_obj_get_int(args[3]), y2 = mp_obj_get_int(args[4]);
+    int idx = mp_obj_get_int(args[5]) & 1;
+    bool ccw = mp_obj_is_true(args[6]);
+    int w = x2 - x1 + 1;
+    if (x1 < 0 || y1 < 0 || x2 >= LCD_V_RES || y2 >= LCD_H_RES || w <= 0 || y2 < y1 ||
+        bi.len < (size_t)w * (size_t)(y2 - y1 + 1) * 2) {
+        mp_raise_ValueError(MP_ERROR_TEXT("area/buffer"));
+    }
+    const uint16_t *src = (const uint16_t *)bi.buf;
+    uint16_t *fb = (uint16_t *)s_fbs[idx];
+    // logical (x, y) -> physical cw: X = H_RES-1-y, Y = x ; ccw: X = y, Y = V_RES-1-x
+    for (int x = x1; x <= x2; x++) {
+        const uint16_t *col = src + (x - x1);
+        if (!ccw) {
+            uint16_t *dst = fb + (size_t)x * LCD_H_RES + (LCD_H_RES - 1 - y2);
+            for (int y = y2; y >= y1; y--) {
+                *dst++ = col[(size_t)(y - y1) * w];
+            }
+        } else {
+            uint16_t *dst = fb + (size_t)(LCD_V_RES - 1 - x) * LCD_H_RES + y1;
+            for (int y = y1; y <= y2; y++) {
+                *dst++ = col[(size_t)(y - y1) * w];
+            }
+        }
+    }
+    int X1, X2, Y1, Y2;
+    if (!ccw) {
+        X1 = LCD_H_RES - 1 - y2; X2 = LCD_H_RES - 1 - y1; Y1 = x1; Y2 = x2;
+    } else {
+        X1 = y1; X2 = y2; Y1 = LCD_V_RES - 1 - x2; Y2 = LCD_V_RES - 1 - x1;
+    }
+    mp_obj_t t[4] = {mp_obj_new_int(X1), mp_obj_new_int(Y1), mp_obj_new_int(X2), mp_obj_new_int(Y2)};
+    return mp_obj_new_tuple(4, t);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_blit_rot_obj, 7, 7, rgb_lcd_blit_rot);
+
+// copy_rect(from_idx, to_idx, X1, Y1, X2, Y2): copy a physical rectangle between the two frame buffers, so both stay
+// identical after a partial (rotated) frame has been written into one of them.
+static mp_obj_t rgb_lcd_copy_rect(size_t n_args, const mp_obj_t *args) {
+    int from = mp_obj_get_int(args[0]) & 1, to = mp_obj_get_int(args[1]) & 1;
+    int X1 = mp_obj_get_int(args[2]), Y1 = mp_obj_get_int(args[3]);
+    int X2 = mp_obj_get_int(args[4]), Y2 = mp_obj_get_int(args[5]);
+    if (X1 < 0) X1 = 0;
+    if (Y1 < 0) Y1 = 0;
+    if (X2 >= LCD_H_RES) X2 = LCD_H_RES - 1;
+    if (Y2 >= LCD_V_RES) Y2 = LCD_V_RES - 1;
+    if (X2 < X1 || Y2 < Y1) {
+        return mp_const_none;
+    }
+    uint16_t *a = (uint16_t *)s_fbs[from], *b = (uint16_t *)s_fbs[to];
+    for (int y = Y1; y <= Y2; y++) {
+        memcpy(b + (size_t)y * LCD_H_RES + X1, a + (size_t)y * LCD_H_RES + X1, (size_t)(X2 - X1 + 1) * 2);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_copy_rect_obj, 6, 6, rgb_lcd_copy_rect);
+
+// grab_col(fb, X, dst, n, y0, ccw...) is done in Python via the PNG encoder; nothing else needed here.
+
 // stats() -> (refreshes, glitches, max_interval_us)
 static mp_obj_t rgb_lcd_stats(void) {
     mp_obj_t t[3] = {mp_obj_new_int_from_uint(s_vs_frames), mp_obj_new_int_from_uint(s_vs_glitches),
@@ -181,6 +262,9 @@ static const mp_rom_map_elem_t rgb_lcd_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&rgb_lcd_init_obj)},
     {MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&rgb_lcd_present_obj)},
     {MP_ROM_QSTR(MP_QSTR_vsync_waits), MP_ROM_PTR(&rgb_lcd_vsync_waits_obj)},
+    {MP_ROM_QSTR(MP_QSTR_buffer), MP_ROM_PTR(&rgb_lcd_buffer_obj)},
+    {MP_ROM_QSTR(MP_QSTR_blit_rot), MP_ROM_PTR(&rgb_lcd_blit_rot_obj)},
+    {MP_ROM_QSTR(MP_QSTR_copy_rect), MP_ROM_PTR(&rgb_lcd_copy_rect_obj)},
     {MP_ROM_QSTR(MP_QSTR_stats), MP_ROM_PTR(&rgb_lcd_stats_obj)},
     {MP_ROM_QSTR(MP_QSTR_WIDTH), MP_ROM_INT(LCD_H_RES)},
     {MP_ROM_QSTR(MP_QSTR_HEIGHT), MP_ROM_INT(LCD_V_RES)},

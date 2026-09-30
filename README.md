@@ -1,41 +1,70 @@
-# ESP LCD MicroPython Skeleton
+# Sigen dashboard on MicroPython (Waveshare ESP32-S3-Touch-LCD-7)
 
-MicroPython + LVGL on the Waveshare ESP32-S3-Touch-LCD-7 (800x480). Bring-up skeleton: build, flash, run, then add your app in `py/`.
+A port of [`sigen-dashboard`](../sigen-dashboard) (ESP-IDF / C / LVGL) to MicroPython + LVGL 9, built on
+[`esp-lcd-micropython-skeleton`](../esp-lcd-micropython-skeleton). It shows a Sigenergy SigenStor's live battery / solar /
+load / grid power on the 800x480 touch panel, keeps 31 days of history and 36 months of totals, and serves the same HTTP API
+and web page as the C firmware.
 
-Port of `../p4python` (Guition JC1060P470C, ESP32-P4) to the S3 board that `../sigen-dashboard` (ESP-IDF) runs on.
-Goal: keep internal SRAM free by running code/rodata and the whole Python + LVGL heap from PSRAM.
+**Why:** the ESP-IDF build ran internal SRAM down to a few hundred bytes. Here the interpreter code, read-only data, the whole
+Python + LVGL heap and both frame buffers live in the 8 MB PSRAM. Measured with everything running (WiFi, Modbus polling,
+HTTP server, 8.8k-sample history, all screens built): **internal SRAM 158 KB free (84 KB largest block), PSRAM 3.1 MB free,
+Python heap 3.6 MB free.**
 
+## Features (all ported)
+Dashboard (4 quadrants, peak markers, source-split bars) · Graph (paged day view) · Monthly (bar chart, billing cycle) ·
+System Info / Settings / WiFi tabs · landscape **and portrait** · 5-minute history in a raw flash ring (31 days) · monthly and
+per-day totals · SNTP + POSIX time zones (`www/tzdata.json`) · WiFi provisioning (setup AP + captive portal + on-device
+WiFi manager) · screen blanking, scheduled night screen off, optional PWM backlight curve · HTTP API + landing page +
+Chart.js history page · CSV import/export · **OTA** for firmware (dual slots, rollback) and for the Python app (rollback).
+
+## Layout
 ```
-build.sh              build firmware (IDF 5.5.4, needs `install.sh esp32s3` once) -> micropython/ports/esp32/build-ESP32_GENERIC_S3
-board_s3_7/           board def: mpconfigboard.*, sdkconfig.board, partitions.csv (8MB: 4MB app + 4MB FAT), lv_conf.h
-usermod/rgb_lcd/      C module: 800x480 RGB panel, 2 PSRAM framebuffers + SRAM bounce buffers, present(), vsync stats
-py/board.py           CH422G expander (backlight/reset), GT911 touch, LVGL double-buffered DIRECT flush, main loop
-py/main.py            bring-up demo: memory / vsync stats, touch dot, slider
-py/deploy.sh          copy py/ to the board (PORT=/dev/ttyACM1)
+build.sh                 build the firmware (IDF 5.5.4; `~/esp/esp-idf-v5.5.4/install.sh esp32s3` once)
+board_s3_7/              board definition: sdkconfig, partitions (dual OTA + history + FAT), lv_conf.h
+usermod/rgb_lcd/         C module: RGB panel, 2 PSRAM frame buffers, vsync, rotated blit for portrait
+fonts/                   icon fonts (Material Design icons) compiled into LVGL
+py/                      the application (copied to the board's FAT filesystem)
+  boot.py                Python-update rollback guard
+  board.py               display / touch / CH422G / LVGL loop, portrait rotation
+  main.py                wiring + first-run flow
+  core/                  logic without widgets: modbus, history, monthly, wifi, portal, http, api, ota, backlight ...
+  ui/                    LVGL screens: dashboard, graph, monthly, info, settings, wifi, shell (page navigator)
+  www/                   landing page, history chart, Chart.js, setup portal, tzdata.json
+  tests/                 host tests: `cd py && python3 -m unittest discover tests`
+patches/                 local patches to the vendored micropython / lv_binding trees
+scripts_ota.sh           push py/ over the network (POST /api/ota/py)
+shot.sh                  PNG screenshot over HTTP
 ```
 
-Flash: `python -m esptool --chip esp32s3 -p /dev/ttyACM1 -b 460800 write_flash @flash_args` from the build dir
-(if the FAT area holds foreign data: `erase_region 0x410000 0x3F0000`).
+## Build, flash, deploy
+```
+./build.sh -j8                                    # -> micropython/ports/esp32/build-ESP32_GENERIC_S3/
+# first flash over USB (writes bootloader, partition table, otadata and the app into ota_0):
+cd micropython/ports/esp32/build-ESP32_GENERIC_S3 && python -m esptool --chip esp32s3 -p /dev/ttyACM1 write_flash @flash_args
+cd ../../../../py && ./deploy.sh                  # copy py/ to the board over USB (mpremote ... resume)
+```
+After that, updates need no cable:
+```
+curl -X POST -H "X-OTA-Token: $T" --data-binary @micropython.bin http://HOST/api/ota      # firmware (~1 min)
+./scripts_ota.sh HOST TOKEN                                                                # Python app (~45 s)
+```
+First boot: the panel opens an AP `ESP32-Setup-XXXXXX` (open, 192.168.4.1) with a captive portal, or pick a network on the
+touchscreen itself; then it asks for the inverter's IP. The admin token (`X-OTA-Token`) is generated on first boot and shown in
+Settings > OTA Key.
 
-## Memory (measured, demo running)
-| | free |
-|---|---|
-| Internal SRAM (366 KB heap) | 230 KB, largest block 156 KB |
-| PSRAM (5.7 MB heap after 1.5 MB framebuffers + XIP code) | 4.1 MB |
-| Python heap (in PSRAM) | 4.1 MB |
+Notes: use `mpremote ... resume` (a soft reset is fine here, but `resume` avoids killing the UI loop). Never pass `BUILD=` to
+`make` (it leaks into the mpy-cross sub-make). Flash writes stall the cache: the history ring writes one 32-byte record per
+5 minutes, whole sectors on import.
 
-Enablers (`board_s3_7/sdkconfig.board`): `SPIRAM_FETCH_INSTRUCTIONS` + `SPIRAM_RODATA` (code/rodata from PSRAM),
-`LCD_RGB_ISR_IRAM_SAFE` (panel keeps scanning during flash writes), MicroPython's GC heap and LVGL (`LV_STDLIB_MICROPYTHON`) in PSRAM.
+## Differences from the C firmware
+* Modbus reads are individual registers 1 s apart (same pacing rule) so a poll cycle is ~35 s, exactly as before.
+* Bulk history import is slower (about 1 min for 31 days) and `GET /api/history` takes ~20 s; the UI keeps running meanwhile.
+* No core dump / LVGL lock (cooperative event loop instead of tasks). Timezone default is Australia/Sydney as before: change it in Settings.
+* Firmware OTA needs the dual-slot partition layout (flash it over USB once).
+* The app files live in FAT, so `main.py` etc. can be edited on the board.
 
-## Notes
-* `rgb_lcd.vsync_waits(n)`: vsyncs `present()` waits for (driver default 2, board.py sets 2). 1 doubled the animation frame rate (13 -> 26 fps) with 0 vsync glitches; but showed glitching while dragging a slider, so `board.init()` sets 2.
-* Backlight is on/off only (CH422G output, no PWM). Touch reset + LCD reset also on the CH422G.
-* Do not override `BUILD=` in make: it leaks into the mpy-cross sub-make and breaks the link (`mp_module_string`).
-* Panel: 13.5 MHz pclk (ST7262 HSYNC period spec), 20-row bounce buffers (see sigen-dashboard sdkconfig.defaults history for why not 32).
-* Not ported yet: the Shelly-specific `core/ui/features` app framework, custom fonts, camera/audio (P4-only hardware).
-
-## Vendored trees (not tracked in this repo)
-`micropython/` (v1.29.0, commit 0fd6c57) and `lv_binding_micropython/` (+ its `lvgl`, `pycparser` submodules) are plain copies
-from `../p4python` with local patches, saved in `patches/` (`micropython-esp32.patch`: extra IDF components + LVGL soft-reset
-restart in main.c; `lv_binding-gen_mpy.patch`: callback exceptions no longer unwind through LVGL). Re-clone them and apply the
-patches to rebuild elsewhere; the `esp_video`/camera bits in the patch header are P4-only and can be dropped.
+## Status
+Verified on hardware: WiFi join + on-device setup, live Modbus data, dashboard/graph/monthly/info/settings/WiFi screens in both
+orientations (rotation direction confirmed), history + monthly import of the old device's data, HTTP API and web page, firmware
+OTA and Python OTA. Not yet exercised on hardware: the phone-side captive portal, PWM backlight (needs the GPIO jumper), and a
+long soak test.

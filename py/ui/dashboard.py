@@ -42,13 +42,26 @@ class Dashboard:
 
     # ---- build ------------------------------------------------------------------------------------
     def build(self):
+        import board
+        self.portrait = board.portrait
         self.inv_kw, self.sol_kw = self.sizing()
         self.pk = {}
-        self.build_battery(self.parent)
-        self.build_solar(self.parent)
-        self.build_load(self.parent)
-        self.build_grid(self.parent)
-        self.build_icons(self.parent)
+        # bar geometry shared by build_*() and the refresh code (landscape defaults; portrait overrides)
+        self.b_center, self.b_half, self.b_bar_y = 146, 132, 176
+        self.b_icon = (304, 73, 50, 128)                   # fill x, width, top, max height inside the battery icon
+        self.s_x0, self.s_w, self.s_bar_y = 15, 364, 176
+        self.l_x0, self.l_w, self.l_bar_y = 15, 364, 176
+        self.g_center, self.g_half, self.g_bar_y = 196, 180, 176
+        self.sc_w = 383 - 65 - 4
+        self.split_x, self.split_y, self.split_w, self.split_h = 15, 150, 364, 12
+        if self.portrait:
+            self.build_portrait(self.parent)
+        else:
+            self.build_battery(self.parent)
+            self.build_solar(self.parent)
+            self.build_load(self.parent)
+            self.build_grid(self.parent)
+            self.build_icons(self.parent)
         self.blink = lv.timer_create(self._blink, BLINK_MS, None)
 
     def build_battery(self, p):
@@ -96,7 +109,6 @@ class Dashboard:
         self.s_mtd = label(c, 15, 118, LEFT, font(16), NO_DATA, "MTD: -- kWh")
         self.s_self = label(c, 15, 144, LEFT, font(16), NO_DATA, "--%", 45)
         self.s_self.set_long_mode(lv.label.LONG_MODE.CLIP)
-        self.s_self_w = 383 - 65 - 4
         self.s_self_fill = kit.mini_bar(c, 65, 145, 383 - 65, 14, SOL_BORDER)
         self._bar_frame(c)
         self.s_target = rect(c, 15, 178, 0, 20, LOAD_FILL, 4)
@@ -120,7 +132,6 @@ class Dashboard:
         self.l_mtd_split = label(c, 383, 118, RIGHT, lv.font_load_split_16, NO_DATA, "")
         self.l_mtd_split.set_recolor(True)
         # source-split bar (solar / battery / grid share of today's load)
-        self.split_x, self.split_y, self.split_w, self.split_h = 15, 150, 364, 12
         rect(c, 13, 148, 368, 16, TRACK_BG, 6)
         self.l_split = []
         for col in (SOL_BORDER, BATT_BORDER, IMP_BORDER):
@@ -158,6 +169,132 @@ class Dashboard:
         label(c, 13, 205, LEFT, font(20), LABEL, inv)
         label(c, 197, 205, CENTER, font(20), LABEL, "0")
         label(c, 381, 205, RIGHT, font(20), LABEL, inv)
+
+    def build_portrait(self, p):
+        """480x800: four stacked 197 px bands (Solar, Battery, Load, Grid), smaller fonts, wider bars."""
+        F = font
+        # solar
+        c = self.s_card = kit.card(p, 0, 0, 480, 197, kit.SOL_BG, SOL_BORDER)
+        kit.title(c, F(24), LABEL, "SOLAR")
+        self.s_value = label(c, 15, 34, LEFT, F(34), NO_DATA, "-- kW")
+        self.s_daily = label(c, 15, 76, LEFT, F(16), NO_DATA, "Today: -- kWh")
+        self.s_mtd = label(c, 15, 96, LEFT, F(16), NO_DATA, "MTD: -- kWh")
+        self.s_self = label(c, 15, 116, LEFT, F(16), NO_DATA, "--%", 45)
+        self.s_self.set_long_mode(lv.label.LONG_MODE.CLIP)
+        self.sc_w = 465 - 65 - 4
+        self.s_self_fill = kit.mini_bar(c, 65, 117, 465 - 65, 14, SOL_BORDER)
+        self.s_x0, self.s_w, self.s_bar_y = 15, 446, 142
+        rect(c, 13, 142, 450, 24, TRACK_BG, 6)
+        for x in (125, 237, 349):
+            m = rect(c, x, 144, 2, 20, LABEL)
+            m.set_style_bg_opa(kit.OPA._40, 0)
+        self.s_target = rect(c, 15, 144, 0, 20, LOAD_FILL, 4)
+        self.s_target.set_style_bg_opa(kit.OPA._0, 0)
+        self.s_bar = rect(c, 15, 144, 0, 20, SOL_FILL, 4)
+        kit.glow(self.s_bar, SOL_FILL)
+        self.s_bar.set_style_bg_grad_color(kit.rgb(SOL_BORDER), 0)
+        self.s_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
+        kit.outline(c, 13, 142, 450, 24, BAR_BORDER, 6)
+        self.pk["sol"] = kit.PeakMarker(c, 142)
+        label(c, 13, 170, LEFT, F(14), LABEL, "0 kW")
+        for x, f in ((126, .25), (238, .5), (350, .75)):
+            label(c, x, 170, CENTER, F(14), LABEL, "%.1f" % (self.sol_kw * f))
+        label(c, 463, 170, RIGHT, F(14), LABEL, "%.0f kW" % self.sol_kw)
+        # status icons in the solar band's corner
+        self.i_modbus = label(c, 385, 6, RIGHT, lv.font_mdi_24, NO_DATA, MDI_HOME_BATT)
+        self.i_ntp = label(c, 425, 6, RIGHT, lv.font_mdi_24, NO_DATA, MDI_CLOCK)
+        self.i_wifi = label(c, 465, 6, RIGHT, lv.font_mdi_24, NO_DATA, MDI_WIFI)
+        for icon, cb in ((self.i_wifi, self.on_wifi_icon), (self.i_modbus, self.on_modbus_icon)):
+            if cb:
+                icon.add_flag(lv.obj.FLAG.CLICKABLE)
+                icon.set_style_text_color(kit.rgb(kit.DOT_ACTIVE), lv.STATE.PRESSED)
+                icon.add_event_cb(lambda e, f=cb: f(), lv.EVENT.CLICKED, None)
+        self.paint_icons()
+        # battery
+        c = self.b_card = kit.card(p, 0, 201, 480, 197, kit.BATT_BG, BATT_BORDER)
+        kit.title(c, F(24), LABEL, "BATTERY")
+        self.b_temp = label(c, 465, 8, RIGHT, F(16), NO_DATA, "-- C")
+        self.b_pct = label(c, 15, 34, LEFT, F(34), NO_DATA, "--%")
+        self.b_time = label(c, 140, 48, LEFT, F(16), NO_DATA, "")
+        iw, ih, ix, iy = 68, 120, 465 - 68, 38
+        self.b_outline = kit.outline(c, ix, iy, iw, ih, NO_DATA, 8, 3)
+        self.b_nub = rect(c, ix + (iw - 28) // 2, iy - 7, 28, 9, NO_DATA, 4)
+        self.b_fill = rect(c, ix + 5, iy + 5, iw - 10, 0, NO_DATA, 4)
+        self.b_icon = (ix + 5, iw - 10, iy + 5, ih - 10)
+        self.b_kwh = label(c, ix + iw // 2, iy + ih + 3, CENTER, F(16), NO_DATA, "-- kWh")
+        x2 = ix - 12
+        self.b_center = (13 + x2) // 2
+        self.b_half = self.b_center - 13 - 2
+        self.b_bar_y = 142
+        rect(c, 13, 142, x2 - 13, 24, TRACK_BG, 6)
+        kit.outline(c, 13, 142, x2 - 13, 24, BAR_BORDER, 6)
+        rect(c, self.b_center, 144, 2, 20, LABEL)
+        self.b_bar = rect(c, self.b_center, 144, 0, 20, NO_DATA, 4)
+        kit.glow(self.b_bar, NO_DATA)
+        self.b_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
+        self.pk["bchg"] = kit.PeakMarker(c, 142)
+        self.pk["bdis"] = kit.PeakMarker(c, 142)
+        self.b_power = label(c, self.b_center, 82, CENTER, F(30), NO_DATA, "-- kW")
+        self.b_badge = kit.Badge(c, F(16), "NO DATA", self.b_center, 114, CENTER)
+        inv = "%.0f kW" % self.inv_kw
+        label(c, 13, 170, LEFT, F(16), LABEL, inv)
+        label(c, self.b_center, 170, CENTER, F(16), LABEL, "0")
+        label(c, x2, 170, RIGHT, F(16), LABEL, inv)
+        # load
+        c = self.l_card = kit.card(p, 0, 402, 480, 197, kit.LOAD_BG, LOAD_BORDER)
+        kit.title(c, F(24), LABEL, "LOAD")
+        self.l_value = label(c, 15, 34, LEFT, F(34), NO_DATA, "-- kW")
+        self.l_daily = label(c, 15, 76, LEFT, F(16), NO_DATA, "Today: -- kWh")
+        self.l_daily_split = label(c, 465, 76, RIGHT, lv.font_load_split_16, NO_DATA, "")
+        self.l_daily_split.set_recolor(True)
+        self.l_mtd = label(c, 15, 96, LEFT, F(16), NO_DATA, "MTD: -- kWh")
+        self.l_mtd_split = label(c, 465, 96, RIGHT, lv.font_load_split_16, NO_DATA, "")
+        self.l_mtd_split.set_recolor(True)
+        self.split_x, self.split_y, self.split_w, self.split_h = 15, 122, 446, 10
+        rect(c, 13, 120, 450, 14, TRACK_BG, 6)
+        self.l_split = []
+        for col in (SOL_BORDER, BATT_BORDER, IMP_BORDER):
+            self.l_split.append(rect(c, self.split_x, self.split_y, 0, self.split_h, col))
+        self.l_split[0].set_style_radius(4, 0)
+        self.l_split[2].set_style_radius(4, 0)
+        kit.outline(c, 13, 120, 450, 14, BAR_BORDER, 6)
+        self.l_x0, self.l_w, self.l_bar_y = 15, 446, 142
+        rect(c, 13, 142, 450, 24, TRACK_BG, 6)
+        for x in (125, 237, 349):
+            m = rect(c, x, 144, 2, 20, LABEL)
+            m.set_style_bg_opa(kit.OPA._40, 0)
+        self.l_seg = []
+        for col in (LOAD_FILL, BATT_BORDER, IMP_BORDER):
+            self.l_seg.append(rect(c, 15, 144, 0, 20, col))
+        self.l_seg[0].set_style_radius(4, 0)
+        self.l_seg[2].set_style_radius(4, 0)
+        kit.outline(c, 13, 142, 450, 24, BAR_BORDER, 6)
+        self.pk["load"] = kit.PeakMarker(c, 142)
+        label(c, 13, 170, LEFT, F(14), LABEL, "0 kW")
+        for x, f in ((126, .25), (238, .5), (350, .75)):
+            label(c, x, 170, CENTER, F(14), LABEL, "%.1f" % (self.inv_kw * f))
+        label(c, 463, 170, RIGHT, F(14), LABEL, "%.0f kW" % self.inv_kw)
+        # grid
+        c = self.g_card = kit.card(p, 0, 603, 480, 197, kit.GRID_BG_IDLE, IMP_BORDER)
+        kit.title(c, F(24), LABEL, "GRID")
+        self.g_ongrid = kit.Badge(c, F(16), "", 465, 8, RIGHT)
+        self.g_value = label(c, 15, 34, LEFT, F(34), NO_DATA, "-- kW")
+        self.g_daily = label(c, 15, 76, LEFT, F(16), NO_DATA, "Today: In -- / Out -- kWh")
+        self.g_mtd = label(c, 15, 96, LEFT, F(16), NO_DATA, "MTD: In -- / Out -- kWh")
+        self.g_badge = kit.Badge(c, F(16), "GRID", 240, 116, CENTER)
+        self.g_center, self.g_half, self.g_bar_y = 238, 223, 142
+        rect(c, 13, 142, 450, 24, TRACK_BG, 6)
+        kit.outline(c, 13, 142, 450, 24, BAR_BORDER, 6)
+        rect(c, 238, 144, 2, 20, NO_DATA)
+        self.g_bar = rect(c, 238, 144, 0, 20, NO_DATA, 4)
+        kit.glow(self.g_bar, NO_DATA)
+        self.g_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
+        self.pk["gimp"] = kit.PeakMarker(c, 142)
+        self.pk["gexp"] = kit.PeakMarker(c, 142)
+        inv = "%.0f kW" % self.inv_kw
+        label(c, 13, 170, LEFT, F(16), LABEL, inv)
+        label(c, 238, 170, CENTER, F(16), LABEL, "0")
+        label(c, 463, 170, RIGHT, F(16), LABEL, inv)
 
     def build_icons(self, p):
         """Modbus / NTP / WiFi status icons, top-right of the Solar quadrant (no header bar)."""
@@ -246,9 +383,10 @@ class Dashboard:
         self.b_outline.set_style_border_color(kit.rgb(col), 0)
         kit.set_bg(self.b_nub, col)
         set_text(self.b_pct, ("%.0f%%" if soc in (0.0, 100.0) else "%.1f%%") % soc, col)
-        h = int(128 * (soc / 100.0))
-        self.b_fill.set_pos(304, 50 + (128 - h))
-        self.b_fill.set_size(73, max(h, 0))
+        ix, iw, itop, imax = self.b_icon
+        h = int(imax * (soc / 100.0))
+        self.b_fill.set_pos(ix, itop + (imax - h))
+        self.b_fill.set_size(iw, max(h, 0))
         kit.set_bg(self.b_fill, col)
         self.b_fill.set_style_bg_grad_color(kit.rgb(kit.darken(col, 102)), 0)
         self.b_fill.set_style_bg_grad_dir(lv.GRAD_DIR.VER, 0)
@@ -288,17 +426,17 @@ class Dashboard:
             set_text(self.b_power, "0.00 kW", LABEL)
         self.r_time(p)
         bar = self.b_bar
-        half = 132
+        half, cx, by = self.b_half, self.b_center, self.b_bar_y + 2
         if p > 0.05:
             w = int(half * min(p / self.inv_kw, 1.0))
-            bar.set_pos(148, 178)
+            bar.set_pos(cx + 2, by)
             bar.set_size(w, 20)
             kit.set_bg(bar, soc_col)
             bar.set_style_bg_grad_color(kit.rgb(kit.lighten(soc_col, 76)), 0)
             bar.set_style_shadow_color(kit.rgb(soc_col), 0)
         elif p < -0.05:
             w = int(half * min(-p / self.inv_kw, 1.0))
-            bar.set_pos(146 - w, 178)
+            bar.set_pos(cx - w, by)
             bar.set_size(w, 20)
             kit.set_bg(bar, kit.darken(DISCHARGE_RED, 76))
             bar.set_style_bg_grad_color(kit.rgb(DISCHARGE_RED), 0)
@@ -313,7 +451,7 @@ class Dashboard:
         kit.set_card_accent(self.s_card, border)
         set_text(self.s_value, "%.2f kW" % pv, SOL_BORDER if gen else NO_DATA)
         pct = min(pv / self.sol_kw, 1.0)
-        self.s_bar.set_size(int(364 * pct) if pct > 0.01 else 0, 20)
+        self.s_bar.set_size(int(self.s_w * pct) if pct > 0.01 else 0, 20)
         kit.set_bg(self.s_bar, SOL_FILL if gen else LABEL)
         self.s_bar.set_style_bg_grad_color(kit.rgb(border), 0)
         self.s_bar.set_style_shadow_color(kit.rgb(border), 0)
@@ -327,9 +465,9 @@ class Dashboard:
         pct = pv / load * 100.0
         excess = pct > 100.0
         set_text(self.s_self, "%.0f%%" % pct, BATT_BORDER if excess else LABEL)
-        self.s_self_fill.set_size(int(self.s_self_w * (1.0 if excess else pct / 100.0)), 10)
+        self.s_self_fill.set_size(int(self.sc_w * (1.0 if excess else pct / 100.0)), 10)
         kit.set_bg(self.s_self_fill, BATT_BORDER if excess else SOL_FILL)
-        tw = int(364 * min(load / self.sol_kw, 1.0))
+        tw = int(self.s_w * min(load / self.sol_kw, 1.0))
         self.s_target.set_size(max(tw, 0), 20)
         self.s_target.set_style_bg_opa(kit.OPA._50, 0)
 
@@ -337,7 +475,7 @@ class Dashboard:
     def r_load(self, load, pv, batt, have_split):
         set_text(self.l_value, "%.2f kW" % load, LOAD_BORDER)
         pct = max(0.0, min(load / self.inv_kw, 1.0))
-        total = int(364 * pct + 0.5) if pct > 0.005 else 0
+        total = int(self.l_w * pct + 0.5) if pct > 0.005 else 0
         sw = bw = 0
         if have_split and load > 0.05 and total > 0:
             solar = min(pv, load) if pv > 0 else 0.0
@@ -352,9 +490,9 @@ class Dashboard:
             kit.set_bg(self.l_seg[0], LOAD_FILL)
             sw = total
         gw = max(total - sw - bw, 0)
-        x = 15
+        x = self.l_x0
         for seg, w in zip(self.l_seg, (sw, bw, gw)):
-            seg.set_pos(x, 178)
+            seg.set_pos(x, self.l_bar_y + 2)
             seg.set_size(w, 20)
             x += w
 
@@ -379,15 +517,16 @@ class Dashboard:
             self.g_badge.set("STANDBY", LABEL)
             set_text(self.g_value, "0.00 kW", LABEL)
         bar = self.g_bar
+        gc, gh, gy = self.g_center, self.g_half, self.g_bar_y + 2
         if exporting:
-            w = int(180 * min(exp / self.inv_kw, 1.0))
-            bar.set_pos(196 - w, 178)
+            w = int(gh * min(exp / self.inv_kw, 1.0))
+            bar.set_pos(gc - w, gy)
             bar.set_size(w, 20)
             kit.set_bg(bar, kit.darken(fill, 76))
             bar.set_style_bg_grad_color(kit.rgb(fill), 0)
         elif importing:
-            w = int(180 * min(imp / self.inv_kw, 1.0))
-            bar.set_pos(198, 178)
+            w = int(gh * min(imp / self.inv_kw, 1.0))
+            bar.set_pos(gc + 2, gy)
             bar.set_size(w, 20)
             kit.set_bg(bar, fill)
             bar.set_style_bg_grad_color(kit.rgb(kit.lighten(fill, 76)), 0)
@@ -418,12 +557,12 @@ class Dashboard:
                 self._covered(lbl, solar, batt, load)
             self._split_bar(*d["today"])
             pk = d["peaks"]
-            self.pk["sol"].set(15, 364, 176, pk["pv"], self.sol_kw, 0)
-            self.pk["load"].set(15, 364, 176, pk["load"], self.inv_kw, 0)
-            self.pk["bchg"].set(146, 132, 176, pk["batt_chg"], self.inv_kw, +1)
-            self.pk["bdis"].set(146, -132, 176, pk["batt_dis"], self.inv_kw, -1)
-            self.pk["gimp"].set(196, 180, 176, pk["grid_imp"], self.inv_kw, +1)
-            self.pk["gexp"].set(196, -180, 176, pk["grid_exp"], self.inv_kw, -1)
+            self.pk["sol"].set(self.s_x0, self.s_w, self.s_bar_y, pk["pv"], self.sol_kw, 0)
+            self.pk["load"].set(self.l_x0, self.l_w, self.l_bar_y, pk["load"], self.inv_kw, 0)
+            self.pk["bchg"].set(self.b_center, self.b_half, self.b_bar_y, pk["batt_chg"], self.inv_kw, +1)
+            self.pk["bdis"].set(self.b_center, -self.b_half, self.b_bar_y, pk["batt_dis"], self.inv_kw, -1)
+            self.pk["gimp"].set(self.g_center, self.g_half, self.g_bar_y, pk["grid_imp"], self.inv_kw, +1)
+            self.pk["gexp"].set(self.g_center, -self.g_half, self.g_bar_y, pk["grid_exp"], self.inv_kw, -1)
         finally:
             self.cov_busy = False
 

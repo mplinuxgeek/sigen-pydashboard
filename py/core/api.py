@@ -432,7 +432,7 @@ def register(app, server):
         shot_busy.append(1)
         try:
             gc.collect()
-            data = await png.encode_rgb565(board.front(), board.W, board.H)
+            data = await png.encode_rgb565(board.front(), board.W, board.H, (2 if board.CCW else 1) if board.portrait else 0)
             return 200, "image/png", data
         finally:
             shot_busy.clear()

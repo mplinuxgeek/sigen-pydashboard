@@ -13,7 +13,8 @@ from core.app import App
 from core.state import State
 from core.dns import CaptiveDns
 
-board.init()
+from core import settings as _settings
+board.init(_settings.get("orientation", "landscape") == "portrait")
 errors.install()
 log.restore()
 log.info("boot: MicroPython on ESP32-S3, PSRAM heap free %d KB" % (gc.mem_free() // 1024))
@@ -89,7 +90,7 @@ def _settings(parent, shell):
 
 
 def _wifi_tab(parent, shell):
-    return WifiPage(parent, app)
+    return WifiPage(parent, app, title="WiFi")
 
 
 shell = app.services["shell"] = Shell(app, board, [

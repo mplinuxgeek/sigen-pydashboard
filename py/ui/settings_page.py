@@ -31,13 +31,22 @@ class SettingsPage:
         parent.set_style_pad_row(6, 0)
         parent.remove_flag(lv.obj.FLAG.SCROLLABLE)
         C.label(parent, "Settings", 24, C.TEXT)
+        import board
+        self.portrait = board.portrait
         main = lv.obj(parent)
         main.remove_style_all()
         main.set_size(lv.pct(100), lv.SIZE_CONTENT)
         main.set_flex_grow(1)
-        main.set_flex_flow(lv.FLEX_FLOW.ROW)
+        main.set_flex_flow(lv.FLEX_FLOW.COLUMN if self.portrait else lv.FLEX_FLOW.ROW)
         main.set_style_pad_column(16, 0)
-        main.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        main.set_style_pad_row(4, 0)
+        if self.portrait:                       # the whole form scrolls as one column, above the keyboard
+            main.add_flag(lv.obj.FLAG.SCROLLABLE)
+            main.add_flag(lv.obj.FLAG.USER_1)
+            main.set_scroll_dir(lv.DIR.VER)
+            main.set_scrollbar_mode(lv.SCROLLBAR_MODE.AUTO)
+        else:
+            main.remove_flag(lv.obj.FLAG.SCROLLABLE)
         main.add_event_cb(lambda e: self.hide_kb(), lv.EVENT.CLICKED, None)
         self.left = self._col(main)
         self.right = self._col(main)
@@ -100,14 +109,20 @@ class SettingsPage:
     def _col(self, parent):
         c = lv.obj(parent)
         c.remove_style_all()
-        c.set_size(lv.pct(50), lv.pct(100))
-        c.set_flex_grow(1)
-        c.set_flex_flow(lv.FLEX_FLOW.COLUMN)
-        c.set_style_pad_row(6, 0)
-        c.add_flag(lv.obj.FLAG.SCROLLABLE)
-        c.add_flag(lv.obj.FLAG.USER_1)          # keep scrollable (vertical only)
-        c.set_scroll_dir(lv.DIR.VER)
-        c.set_scrollbar_mode(lv.SCROLLBAR_MODE.AUTO)
+        if self.portrait:
+            c.set_size(lv.pct(100), lv.SIZE_CONTENT)
+            c.set_flex_flow(lv.FLEX_FLOW.COLUMN)
+            c.set_style_pad_row(4, 0)
+            c.remove_flag(lv.obj.FLAG.SCROLLABLE)
+        else:
+            c.set_size(lv.pct(50), lv.pct(100))
+            c.set_flex_grow(1)
+            c.set_flex_flow(lv.FLEX_FLOW.COLUMN)
+            c.set_style_pad_row(6, 0)
+            c.add_flag(lv.obj.FLAG.SCROLLABLE)
+            c.add_flag(lv.obj.FLAG.USER_1)          # keep scrollable (vertical only)
+            c.set_scroll_dir(lv.DIR.VER)
+            c.set_scrollbar_mode(lv.SCROLLBAR_MODE.AUTO)
         c.add_event_cb(lambda e: self.hide_kb(), lv.EVENT.CLICKED, None)
         return c
 
@@ -151,8 +166,12 @@ class SettingsPage:
     def build_kb(self, parent):
         p = self.kb_panel = lv.obj(parent)
         p.add_flag(lv.obj.FLAG.IGNORE_LAYOUT)
-        p.set_size(lv.pct(50), lv.pct(88))
-        p.align(lv.ALIGN.RIGHT_MID, 0, 0)
+        if self.portrait:
+            p.set_size(lv.pct(96), lv.pct(46))
+            p.align(lv.ALIGN.BOTTOM_MID, 0, 0)
+        else:
+            p.set_size(lv.pct(50), lv.pct(88))
+            p.align(lv.ALIGN.RIGHT_MID, 0, 0)
         p.set_style_bg_color(C.c(C.CARD), 0)
         p.set_style_bg_opa(lv.OPA.COVER, 0)
         p.set_style_border_color(C.c(C.FIELD_BORDER), 0)

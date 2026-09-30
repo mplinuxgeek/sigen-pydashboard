@@ -76,6 +76,20 @@ def _row565_to_rgb(src: ptr8, dst: ptr8, npx: int):
 
 
 @micropython.viper
+def _col565_to_rgb(src: ptr8, first: int, step: int, dst: ptr8, npx: int):
+    """Like _row565_to_rgb but reading pixel i from src[(first + i*step) * 2] (a column of the panel)."""
+    for i in range(npx):
+        o = (first + i * step) * 2
+        v = int(src[o]) | (int(src[o + 1]) << 8)
+        r = (v >> 11) & 31
+        g = (v >> 5) & 63
+        b = v & 31
+        dst[3 * i + 1] = (r << 3) | (r >> 2)
+        dst[3 * i + 2] = (g << 2) | (g >> 4)
+        dst[3 * i + 3] = (b << 3) | (b >> 2)
+
+
+@micropython.viper
 def _adler_update(src: ptr8, start: int, n: int, a0: int, b0: int) -> int:
     """Adler-32 running update over src[start:start+n]; state in/out as a (b << 16) | a int."""
     a = a0
@@ -182,8 +196,8 @@ def _chunk(tag, data):
 ROWS_PER_STRIP = 24
 
 
-async def encode_rgb565(fb, w, h):
-    """PNG bytes for an RGB565 little-endian framebuffer. Works in strips of ROWS_PER_STRIP rows (the previous
+async def encode_rgb565(fb, w, h, rot=0):
+    """PNG bytes for an RGB565 little-endian framebuffer (rot 1/2: the panel holds a picture rotated cw/ccw). Works in strips of ROWS_PER_STRIP rows (the previous
     row is kept for the row-above match), so it needs well under 200 KB of contiguous heap for any screen size."""
     import array
     global _tables
@@ -197,6 +211,7 @@ async def encode_rgb565(fb, w, h):
     out = bytearray(rowlen * ROWS_PER_STRIP * 9 // 8 + 256)
     mvfb = memoryview(fb)
     stride = 2 * w
+    pw = h if rot else w                        # rot: fb is the 800x480 panel holding a rotated w x h picture
     st = array.array("i", [3, 3])              # bit buffer: block header BFINAL=1, BTYPE=01 (fixed Huffman)
     idat = bytearray(b"\x78\x01")
     adler = 1                                  # (b << 16) | a
@@ -208,7 +223,13 @@ async def encode_rgb565(fb, w, h):
             buf[0:rowlen] = buf[base + (prev_rows - 1) * rowlen:base + prev_rows * rowlen]
         for k in range(r):
             y = y0 + k
-            _row565_to_rgb(mvfb[y * stride:(y + 1) * stride], mv[base + k * rowlen:base + (k + 1) * rowlen], w)
+            dst = mv[base + k * rowlen:base + (k + 1) * rowlen]
+            if not rot:
+                _row565_to_rgb(mvfb[y * stride:(y + 1) * stride], dst, w)
+            elif rot == 1:                      # clockwise: logical (x, y) sits at panel (X = H-1-y, Y = x)
+                _col565_to_rgb(mvfb, h - 1 - y, pw, dst, w)
+            else:                               # counter-clockwise: panel (X = y, Y = W-1-x)
+                _col565_to_rgb(mvfb, (w - 1) * pw + y, -pw, dst, w)
         adler = _adler_update(buf, base, r * rowlen, adler & 0xFFFF, (adler >> 16) & 0xFFFF) & 0xFFFFFFFF
         m = _deflate_strip(buf, base, r * rowlen, y0 * rowlen, out, rowlen, rdrev, rdeb, rdev,
                            lit, lcode, lnbits, lebits, leval, st)

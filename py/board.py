@@ -8,7 +8,10 @@ import rgb_lcd
 import lvgl as lv
 from machine import I2C, Pin
 
-W, H = rgb_lcd.WIDTH, rgb_lcd.HEIGHT
+PHYS_W, PHYS_H = rgb_lcd.WIDTH, rgb_lcd.HEIGHT      # the panel itself is 800x480 landscape
+W, H = PHYS_W, PHYS_H                                # logical size: swapped by init(portrait=True)
+portrait = False
+CCW = False                                          # portrait rotation direction (False = 90 degrees clockwise)
 
 _I2C_SDA, _I2C_SCL = 8, 9
 
@@ -85,6 +88,9 @@ class GT911:
 
 
 _disp = None
+_pbuf = None      # rotated mode: LVGL's single partial draw buffer (internal SRAM)
+_shown = 0      # rotated mode: index of the frame buffer on screen
+_pu = None      # rotated mode: physical dirty rectangle of the frame being rendered
 _indev = None
 _touch = None
 _fbs = None
@@ -113,8 +119,30 @@ def _flush_cb(disp, area, color_p):
     disp.flush_ready()
 
 
+def _flush_rot(disp, area, color_p):
+    """Portrait: rotate LVGL's partial buffer into the back frame buffer; when the frame is complete present it and
+    copy the touched rectangle into the other buffer so both stay identical (the next frame starts from it)."""
+    global _frame, _shown, _pu
+    back = 1 - _shown
+    x1, y1, x2, y2 = rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, back, CCW)
+    if _pu is None:
+        _pu = [x1, y1, x2, y2]
+    else:
+        _pu[0], _pu[1] = min(_pu[0], x1), min(_pu[1], y1)
+        _pu[2], _pu[3] = max(_pu[2], x2), max(_pu[3], y2)
+    if disp.flush_is_last():
+        rgb_lcd.present(back, _pu[1], _pu[3])
+        rgb_lcd.copy_rect(back, _shown, _pu[0], _pu[1], _pu[2], _pu[3])
+        _shown = back
+        _pu = None
+        _frame += 1
+    disp.flush_ready()
+
+
 def front():
     """Framebuffer currently on screen (for screenshots)."""
+    if portrait:
+        return _fbs[_shown]
     return _fbs[(_frame - 1) & 1] if _frame else _fbs[0]
 
 
@@ -147,8 +175,14 @@ def _read_cb(indev, data):
     if DEBUG and pressed != _last_pressed:
         print("[touch]", "down" if pressed else "up", _touch.x, _touch.y, time.ticks_ms())
     _last_pressed = pressed
-    data.point.x = _touch.x
-    data.point.y = _touch.y
+    if portrait:                       # panel coordinates -> rotated logical coordinates
+        if CCW:
+            data.point.x, data.point.y = PHYS_H - 1 - _touch.y, _touch.x
+        else:
+            data.point.x, data.point.y = _touch.y, PHYS_W - 1 - _touch.x
+    else:
+        data.point.x = _touch.x
+        data.point.y = _touch.y
     data.state = lv.INDEV_STATE.PRESSED if pressed else lv.INDEV_STATE.RELEASED
 
 
@@ -167,18 +201,28 @@ def frames():
     return _frame
 
 
-def init():
-    global _disp, _indev, _touch, _fbs
+def init(portrait_mode=False):
+    """Bring up the panel. portrait_mode=True renders a 480x800 logical screen rotated into the 800x480 panel."""
+    global _disp, _indev, _touch, _fbs, W, H, portrait, _pbuf
     if _disp:
         return _disp
     _ch422g_reset()
     lv.init()
     _fbs = rgb_lcd.init()
     rgb_lcd.vsync_waits(2)   # 1 doubles the frame rate but showed glitching while dragging a slider
+    portrait = bool(portrait_mode)
+    if portrait:
+        W, H = PHYS_H, PHYS_W
     _disp = lv.display_create(W, H)
     _disp.set_color_format(lv.COLOR_FORMAT.RGB565)
-    _disp.set_buffers(_fbs[0], _fbs[1], len(_fbs[0]), lv.DISPLAY_RENDER_MODE.DIRECT)
-    _disp.set_flush_cb(_flush_cb)
+    if portrait:
+        # rotated partial rendering: one 64-row internal-SRAM draw buffer, rotated into the panel by _flush_rot
+        _pbuf = rgb_lcd.buffer(W * 64 * 2)
+        _disp.set_buffers(_pbuf, None, len(_pbuf), lv.DISPLAY_RENDER_MODE.PARTIAL)
+        _disp.set_flush_cb(_flush_rot)
+    else:
+        _disp.set_buffers(_fbs[0], _fbs[1], len(_fbs[0]), lv.DISPLAY_RENDER_MODE.DIRECT)
+        _disp.set_flush_cb(_flush_cb)
     # The RGB panel scans out at ~37 Hz (13.5 MHz pixel clock), and each present() waits for it, so redrawing
     # faster than ~33 ms only burns CPU. Touch is polled at the same rate.
     _disp.get_refr_timer().set_period(30)
