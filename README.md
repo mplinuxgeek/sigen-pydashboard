@@ -63,6 +63,11 @@ Notes: use `mpremote ... resume` (a soft reset is fine here, but `resume` avoids
 * Firmware OTA needs the dual-slot partition layout (flash it over USB once).
 * The app files live in FAT, so `main.py` etc. can be edited on the board.
 
+## Why page swipes are instant
+Animated swipes were tried twice (finger-follow slide of the live widgets, then sliding LVGL snapshots). Neither is usable: the
+RGB panel scans its frame buffers out of the same PSRAM the CPU draws into, leaving roughly 25 MB/s; a full-screen slide needs
+~2 MB per frame (about 5 fps measured) and a page snapshot costs ~0.4 s. Pages flip instantly instead.
+
 ## Status
 Verified on hardware: WiFi join + on-device setup, live Modbus data, dashboard/graph/monthly/info/settings/WiFi screens in both
 orientations (rotation direction confirmed), history + monthly import of the old device's data, HTTP API and web page, firmware

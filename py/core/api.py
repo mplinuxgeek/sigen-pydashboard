@@ -408,7 +408,7 @@ def register(app, server):
         return {"ok": True, "changed": changed, "view": names[i] + ("/" + tabs[i] if tabs[i] else ""), "tile": names[i],
                 "tab": tabs[i]}
 
-    async def swipe(req):
+    def swipe(req):
         sh = svc["shell"]
         d = req.query.get("dir", "")
         before = sh.active
@@ -420,10 +420,6 @@ def register(app, server):
             sh.idle_timer.reset()
         else:
             return http.err(400, "dir must be 'left', 'right' or 'none' (e.g. /api/swipe?dir=left)")
-        for _ in range(30):                          # let the slide animation finish so the answer is the new view
-            if not sh._slide and not sh._drag:
-                break
-            await asyncio.sleep_ms(50)
         return view_info(sh.active != before)
 
     shot_busy = []
