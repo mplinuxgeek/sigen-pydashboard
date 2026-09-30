@@ -101,6 +101,7 @@ class SettingsPage:
         for ev in (lv.EVENT.RELEASED, lv.EVENT.PRESS_LOST):
             self.slider.add_event_cb(lambda e: setattr(shell, "suppress", False), ev, None)
         self.preset = self._dd_row(R, "Night curve", ["Off", "Gentle", "Aggressive", "Custom (API)"], self.on_preset)
+        self.anim_cb = C.checkbox(C.row(R), "Animated page swipes")
         self.orient = self._dd_row(R, "Orientation", ["Landscape", "Portrait"], self.on_orient)
         self.status = C.label(L, "", 16, 0xF87171)
         self.build_kb(parent)
@@ -260,8 +261,9 @@ class SettingsPage:
         self.night_end.set_selected(blank.night_end // 60)
         C.set_checked(self.bl_cb, bl.enabled)
         self.preset.set_selected(PRESETS.index(bl.preset) if bl.preset in PRESETS else 0)
-        self.slider.set_value(max(bl.resolve()[0], 3), lv.ANIM.OFF)
+        self.slider.set_value(max(bl.resolve()[0], 3), 0)
         self.update_bl_states()
+        C.set_checked(self.anim_cb, bool(s.get("ui.animate", False)))
         self.orient.set_selected(1 if s.get("orientation", "landscape") == "portrait" else 0)
         self.status.set_text("")
         self.loading = False
@@ -308,6 +310,9 @@ class SettingsPage:
     def on_bl_enable(self):
         self.update_bl_states()
         self.hide_kb()
+        if not self.loading:
+            self.app.services["backlight"].set_config(enabled=C.checked(self.bl_cb))   # takes effect immediately
+            self.slider.set_value(max(self.app.services["backlight"].resolve()[0], 3), 0)
 
     def update_bl_states(self):
         on = C.checked(self.bl_cb)
@@ -387,7 +392,7 @@ class SettingsPage:
         r = lv.roller(parent)
         r.set_options(opts, lv.roller.MODE.NORMAL)
         r.set_visible_row_count(3)
-        r.set_selected(sel, lv.ANIM.OFF)
+        r.set_selected(sel, 0)
         r.set_flex_grow(1)
         r.set_style_bg_color(C.c(C.FIELD_BG), 0)
         r.set_style_text_color(C.c(C.TEXT), 0)
@@ -453,6 +458,7 @@ class SettingsPage:
         blank.set_blank(C.checked(self.blank_cb), TIMEOUTS[self.blank_dd.get_selected()])
         blank.set_night(C.checked(self.night_cb), self.night_start.get_selected() * 60, self.night_end.get_selected() * 60)
         svc["backlight"].set_config(enabled=C.checked(self.bl_cb))
+        s.set("ui.animate", C.checked(self.anim_cb))
         if show_status or self.tz_touched:
             zi = self.region.get_selected()
             if self.zone_list and zi < len(self.zone_list):

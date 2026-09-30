@@ -198,8 +198,10 @@ class Backlight:
         if self.pwm is None and self.enabled:
             from machine import PWM, Pin
             try:
-                self.pwm = PWM(Pin(self.gpio), freq=PWM_FREQ, duty_u16=0)
+                pct = self.resolve()[0]
+                self.pwm = PWM(Pin(self.gpio), freq=PWM_FREQ, duty_u16=pct * 65535 // 100)   # start at the target: no dark flash
                 self.bound_gpio = self.gpio
+                self.applied = pct
             except Exception as e:
                 self.app.log.warn("backlight: cannot bind PWM on gpio %d: %r" % (self.gpio, e))
                 self.enabled = False
