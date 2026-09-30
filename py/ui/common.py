@@ -158,3 +158,63 @@ def confirm(title, text, on_yes, yes_label="Yes", danger=False):
     button(row, "Cancel", CARD, TEXT, lambda: ov.delete()).set_style_bg_color(c(FIELD_BORDER), 0)
     button(row, yes_label, DANGER if danger else ACCENT, ACCENT_TEXT, lambda: (ov.delete(), on_yes()))
     return ov
+
+
+def dropdown(parent, options, cb=None, h=38, grow=True):
+    """Styled dropdown; options is a list of strings. cb() fires on VALUE_CHANGED."""
+    dd = lv.dropdown(parent)
+    dd.set_options("\n".join(options))
+    dd.set_height(h)
+    if grow:
+        dd.set_flex_grow(1)
+        dd.set_width(lv.pct(100))
+    dd.set_style_bg_color(c(FIELD_BG), 0)
+    dd.set_style_bg_opa(lv.OPA.COVER, 0)
+    dd.set_style_text_color(c(TEXT), 0)
+    dd.set_style_border_color(c(FIELD_BORDER), 0)
+    dd.set_style_border_width(1, 0)
+    dd.set_style_pad_ver(4, 0)
+    dd.set_style_pad_hor(8, 0)
+    lst = dd.get_list()
+    lst.set_style_bg_color(c(FIELD_BG), 0)
+    lst.set_style_bg_opa(lv.OPA.COVER, 0)
+    lst.set_style_text_color(c(TEXT), 0)
+    lst.set_style_border_color(c(FIELD_BORDER), 0)
+    lst.set_style_border_width(1, 0)
+    lst.set_style_bg_color(c(ACCENT), lv.PART.SELECTED)
+    lst.set_style_text_color(c(BG), lv.PART.SELECTED)
+    lst.set_style_pad_ver(10, lv.PART.ITEMS)
+    if cb:
+        dd.add_event_cb(lambda e: cb(), lv.EVENT.VALUE_CHANGED, None)
+    return dd
+
+
+def row(parent, h=38, gap=8):
+    r = lv.obj(parent)
+    r.remove_style_all()
+    r.set_size(lv.pct(100), h)
+    r.set_flex_flow(lv.FLEX_FLOW.ROW)
+    r.set_flex_align(lv.FLEX_ALIGN.START, lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER)
+    r.set_style_pad_column(gap, 0)
+    r.remove_flag(lv.obj.FLAG.SCROLLABLE)
+    return r
+
+
+def checkbox(parent, text, cb=None):
+    x = lv.checkbox(parent)
+    x.set_text(text)
+    x.set_style_text_color(c(TEXT), 0)
+    if cb:
+        x.add_event_cb(lambda e: cb(), lv.EVENT.VALUE_CHANGED, None)
+    return x
+
+
+def checked(x):
+    return bool(x.get_state() & lv.STATE.CHECKED)
+
+
+def set_checked(x, on):
+    if on:
+        x.add_state(lv.STATE.CHECKED)
+    else:
+        x.remove_state(lv.STATE.CHECKED)

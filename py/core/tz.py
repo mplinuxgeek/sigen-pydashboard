@@ -1,128 +1,184 @@
-"""Timezone support for MicroPython (no tz database): fixed UTC offset + a DST rule per zone.
+"""Time zones from POSIX TZ strings (the same strings www/tzdata.json carries), applied to Unix-epoch seconds.
 
-The RTC holds UTC (set by NTP). now() returns the local time tuple for the configured zone.
-Settings: region.country (ISO code) and region.zone (city name), default Australia/Adelaide.
+    tz.local(unix=None) -> (y, m, d, h, mi, s, wd, yd) in the configured zone, or None while the clock is unset
+    tz.offset(unix)     -> seconds east of UTC (DST-aware)
+    tz.day_start(unix)  -> Unix time of local midnight for the day containing `unix`
+    tz.selection() / tz.select(country, zone) / tz.countries() / tz.zones(code)
+Settings: tz.country, tz.zone (Olson name), tz.posix, tz.label.
 """
-import time
+import json
 
-from . import settings
+from . import settings, timeutil as T
 
-# rule: None = no DST, else one of AU, NZ, US, EU (see _dst_window)
-# COUNTRIES: code -> (display name, [(city, standard offset minutes, rule, abbrev std, abbrev dst)])
-COUNTRIES = {
-    "AU": ("Australia", [
-        ("Adelaide", 570, "AU", "ACST", "ACDT"), ("Sydney", 600, "AU", "AEST", "AEDT"),
-        ("Melbourne", 600, "AU", "AEST", "AEDT"), ("Canberra", 600, "AU", "AEST", "AEDT"),
-        ("Hobart", 600, "AU", "AEST", "AEDT"), ("Brisbane", 600, None, "AEST", ""),
-        ("Darwin", 570, None, "ACST", ""), ("Perth", 480, None, "AWST", ""),
-        ("Broken Hill", 570, "AU", "ACST", "ACDT")]),
-    "NZ": ("New Zealand", [("Auckland", 720, "NZ", "NZST", "NZDT")]),
-    "US": ("United States", [
-        ("New York", -300, "US", "EST", "EDT"), ("Chicago", -360, "US", "CST", "CDT"),
-        ("Denver", -420, "US", "MST", "MDT"), ("Phoenix", -420, None, "MST", ""),
-        ("Los Angeles", -480, "US", "PST", "PDT"), ("Anchorage", -540, "US", "AKST", "AKDT"),
-        ("Honolulu", -600, None, "HST", "")]),
-    "CA": ("Canada", [
-        ("Toronto", -300, "US", "EST", "EDT"), ("Winnipeg", -360, "US", "CST", "CDT"),
-        ("Edmonton", -420, "US", "MST", "MDT"), ("Vancouver", -480, "US", "PST", "PDT")]),
-    "GB": ("United Kingdom", [("London", 0, "EU", "GMT", "BST")]),
-    "IE": ("Ireland", [("Dublin", 0, "EU", "GMT", "IST")]),
-    "DE": ("Germany", [("Berlin", 60, "EU", "CET", "CEST")]),
-    "FR": ("France", [("Paris", 60, "EU", "CET", "CEST")]),
-    "ES": ("Spain", [("Madrid", 60, "EU", "CET", "CEST")]),
-    "IT": ("Italy", [("Rome", 60, "EU", "CET", "CEST")]),
-    "NL": ("Netherlands", [("Amsterdam", 60, "EU", "CET", "CEST")]),
-    "JP": ("Japan", [("Tokyo", 540, None, "JST", "")]),
-    "SG": ("Singapore", [("Singapore", 480, None, "SGT", "")]),
-    "IN": ("India", [("Kolkata", 330, None, "IST", "")]),
-    "ZA": ("South Africa", [("Johannesburg", 120, None, "SAST", "")]),
-}
-DEFAULT_COUNTRY = "AU"
-DEFAULT_ZONE = "Adelaide"
+DEFAULT = ("AU", "Australia/Sydney", "AEST-10AEDT,M10.1.0,M4.1.0/3", "New South Wales (most areas)")
+_parsed = {}
+_data = None
 
 
-def country_codes():
-    return sorted(COUNTRIES, key=lambda c: COUNTRIES[c][0])
+# ---- POSIX TZ parsing -----------------------------------------------------------------------------------------
+def _name(s, i):
+    if s[i] == "<":
+        j = s.index(">", i)
+        return s[i + 1:j], j + 1
+    j = i
+    while j < len(s) and s[j].isalpha():
+        j += 1
+    return s[i:j], j
 
 
-def get_region():
-    return settings.get("region.country", DEFAULT_COUNTRY), settings.get("region.zone", DEFAULT_ZONE)
+def _hms(s, i):
+    """[+-]hh[:mm[:ss]] -> (seconds, next index)"""
+    sign = 1
+    if i < len(s) and s[i] in "+-":
+        sign = -1 if s[i] == "-" else 1
+        i += 1
+    j = i
+    while j < len(s) and (s[j].isdigit() or s[j] == ":"):
+        j += 1
+    parts = [int(p) for p in s[i:j].split(":")]
+    while len(parts) < 3:
+        parts.append(0)
+    return sign * (parts[0] * 3600 + parts[1] * 60 + parts[2]), j
 
 
-def set_region(country, zone):
-    settings.set("region.country", country)
-    settings.set("region.zone", zone)
+def _rule(s, i):
+    """Mm.w.d[/time] -> ((m, w, d, secs), next index)"""
+    assert s[i] == "M"
+    j = i + 1
+    k = j
+    while k < len(s) and s[k] not in ",/":
+        k += 1
+    m, w, d = (int(x) for x in s[j:k].split("."))
+    secs = 7200
+    if k < len(s) and s[k] == "/":
+        secs, k = _hms(s, k + 1)
+    return (m, w, d, secs), k
 
 
-def _zone(country, zone):
-    entry = COUNTRIES.get(country)
-    if entry:
-        for z in entry[1]:
-            if z[0] == zone:
-                return z
-        return entry[1][0]
-    z = COUNTRIES[DEFAULT_COUNTRY][1][0]
-    return z
+def parse(posix):
+    """-> (std_offset_s_east, dst_offset_s_east or None, start_rule, end_rule, std_name, dst_name)"""
+    p = _parsed.get(posix)
+    if p:
+        return p
+    s = posix
+    std, i = _name(s, 0)
+    off, i = _hms(s, i)
+    std_off = -off
+    dst = start = end = None
+    dst_name = ""
+    if i < len(s) and s[i] != ",":
+        dst_name, i = _name(s, i)
+        dst = std_off + 3600
+        if i < len(s) and s[i] != ",":
+            v, i = _hms(s, i)
+            dst = -v
+    if i < len(s) and s[i] == ",":
+        start, i = _rule(s, i + 1)
+        end, i = _rule(s, i + 1) if s[i] == "," else (None, i)
+        if s[i:i + 1] == ",":
+            end, i = _rule(s, i + 1)
+    if dst is not None and start is None:          # no rule given: US rules
+        start, end = (3, 2, 0, 7200), (11, 1, 0, 7200)
+    p = (std_off, dst, start, end, std, dst_name)
+    if len(_parsed) > 8:
+        _parsed.clear()
+    _parsed[posix] = p
+    return p
 
 
-# ---- DST rules -------------------------------------------------------------------------------
-def _weekday(y, m, d):
-    return time.gmtime(time.mktime((y, m, d, 0, 0, 0, 0, 0)))[6]      # Monday=0 ... Sunday=6
+def _rule_local_secs(y, rule):
+    """Seconds since 1970-01-01T00:00 of the rule's local wall-clock instant in year y."""
+    m, w, d, secs = rule
+    first = T.days_from_civil(y, m, 1)
+    wd = (first + 3) % 7                     # Mon=0
+    want = (d + 6) % 7                       # POSIX: Sunday=0 -> Mon=0 indexing
+    day = 1 + (want - wd) % 7 + 7 * (w - 1)
+    if day > T.days_in_month(y, m):
+        day -= 7
+    return T.days_from_civil(y, m, day) * 86400 + secs
 
 
-def _nth_sunday(y, m, n):
-    """n-th Sunday of the month (n=1..4), or the last one if n == -1."""
-    if n > 0:
-        first = 1 + (6 - _weekday(y, m, 1)) % 7
-        return first + 7 * (n - 1)
-    dim = (31, 29 if y % 4 == 0 and (y % 100 or y % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)[m - 1]
-    return dim - (_weekday(y, m, dim) - 6) % 7
+def offset_for(posix, unix):
+    std_off, dst_off, start, end, _sn, _dn = parse(posix)
+    if dst_off is None:
+        return std_off
+    y = T.civil(unix + std_off)[0]
+    s = _rule_local_secs(y, start) - std_off          # start is in standard time
+    e = _rule_local_secs(y, end) - dst_off            # end is in daylight time
+    inside = (s <= unix < e) if s < e else (unix >= s or unix < e)
+    return dst_off if inside else std_off
 
 
-def _epoch(y, m, d, h):
-    return time.mktime((y, m, d, h, 0, 0, 0, 0))
+# ---- selection ------------------------------------------------------------------------------------------------
+def selection():
+    return (settings.get("tz.country", DEFAULT[0]), settings.get("tz.zone", DEFAULT[1]),
+            settings.get("tz.posix", DEFAULT[2]), settings.get("tz.label", DEFAULT[3]))
 
 
-def _dst_active(utc, std_min, rule, y):
-    """True if DST is in effect at UTC time `utc` for local-year y."""
-    off = std_min * 60
-    if rule == "AU":     # 02:00 standard on first Sunday Oct -> 03:00 daylight (02:00 std) first Sunday Apr
-        start, end = _epoch(y, 10, _nth_sunday(y, 10, 1), 2) - off, _epoch(y, 4, _nth_sunday(y, 4, 1), 2) - off
-        return utc >= start or utc < end
-    if rule == "NZ":     # last Sunday Sep 02:00 std -> first Sunday Apr 02:00 std
-        start, end = _epoch(y, 9, _nth_sunday(y, 9, -1), 2) - off, _epoch(y, 4, _nth_sunday(y, 4, 1), 2) - off
-        return utc >= start or utc < end
-    if rule == "US":     # second Sunday Mar 02:00 std -> first Sunday Nov 01:00 std
-        start, end = _epoch(y, 3, _nth_sunday(y, 3, 2), 2) - off, _epoch(y, 11, _nth_sunday(y, 11, 1), 1) - off
-        return start <= utc < end
-    if rule == "EU":     # last Sunday Mar 01:00 UTC -> last Sunday Oct 01:00 UTC
-        start, end = _epoch(y, 3, _nth_sunday(y, 3, -1), 1), _epoch(y, 10, _nth_sunday(y, 10, -1), 1)
-        return start <= utc < end
-    return False
+def select(country, zone, posix, label):
+    settings.set("tz.country", country)
+    settings.set("tz.zone", zone)
+    settings.set("tz.posix", posix)
+    settings.set("tz.label", label)
 
 
-def offset_info(utc=None):
-    """(offset seconds, abbreviation, is_dst) for the configured zone at `utc` (default now)."""
-    if utc is None:
-        utc = time.time()
-    country, zone = get_region()
-    _city, std, rule, a_std, a_dst = _zone(country, zone)
-    y = time.gmtime(utc + std * 60)[0]
-    dst = bool(rule) and _dst_active(utc, std, rule, y)
-    return (std + (60 if dst else 0)) * 60, (a_dst if dst else a_std), dst
+def offset(unix=None):
+    if unix is None:
+        unix = T.unix_now()
+    return offset_for(selection()[2], unix)
 
 
-def utc_label(offset_s):
-    m = offset_s // 60
-    sign = "+" if m >= 0 else "-"
-    m = abs(m)
-    return "UTC%s%d" % (sign, m // 60) + (":%02d" % (m % 60) if m % 60 else "")
+def local(unix=None):
+    if unix is None:
+        if not T.clock_valid():
+            return None
+        unix = T.unix_now()
+    return T.civil(unix + offset(unix))
 
 
-def now():
-    """Local time tuple (like time.localtime) or None while the clock is not set."""
-    utc = time.time()
-    if time.gmtime(utc)[0] < 2024:
-        return None
-    off, _abbr, _dst = offset_info(utc)
-    return time.gmtime(utc + off)
+def day_start(unix=None):
+    """Unix time of local midnight of the day containing `unix` (default now)."""
+    if unix is None:
+        unix = T.unix_now()
+    off = offset(unix)
+    y, m, d = T.civil(unix + off)[:3]
+    mid = T.to_unix(y, m, d)
+    return mid - offset(mid - off)                 # re-evaluate the offset at that midnight (DST change days)
+
+
+def abbrev(unix=None):
+    posix = selection()[2]
+    std_off, dst_off, _s, _e, sn, dn = parse(posix)
+    return dn if dst_off is not None and offset_for(posix, unix or T.unix_now()) == dst_off else sn
+
+
+# ---- tzdata.json (country/zone picker) ------------------------------------------------------------------------
+def _load():
+    global _data
+    if _data is None:
+        with open("www/tzdata.json") as f:
+            _data = json.load(f)
+    return _data
+
+
+def free():
+    global _data
+    _data = None
+
+
+def countries():
+    """[(code, name)] sorted by name"""
+    d = _load()
+    return sorted(((k, v["name"]) for k, v in d.items()), key=lambda t: t[1])
+
+
+def zones(code):
+    """[(olson, posix, label)] for a country"""
+    return [(z["z"], z["p"], z["l"]) for z in _load()[code]["zones"]]
+
+
+def local_to_unix(local_secs):
+    """Unix time for a wall-clock reading (seconds since 1970 as if it were UTC) in the configured zone."""
+    posix = selection()[2]
+    guess = local_secs - parse(posix)[0]
+    return local_secs - offset_for(posix, guess - offset_for(posix, guess) + parse(posix)[0])

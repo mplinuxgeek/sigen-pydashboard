@@ -206,7 +206,7 @@ class Poller:
         if imp is None or exp is None or not (ntp and ntp.synced):
             return
         from . import tz
-        t = tz.now()
+        t = tz.local()
         if t is None:
             return
         today = t[0] * 10000 + t[1] * 100 + t[2]

@@ -1,8 +1,10 @@
 """Dashboard tile: four quadrants (Battery, Solar, Load, Grid), each with live power, a fill bar and daily totals.
 Landscape 800x480 layout, ported from dashboard_ui.c."""
+import asyncio
+
 import lvgl as lv
 
-from core import state as st
+from core import state as st, timeutil as T, tz
 from . import kit
 from .kit import (LEFT, RIGHT, CENTER, NO_DATA, LABEL, TITLE, SOL_FILL, SOL_BORDER, LOAD_FILL, LOAD_BORDER,
                   IMP_FILL, IMP_BORDER, EXP_FILL, EXP_BORDER, BATT_BORDER, DISCHARGE_RED, TRACK_BG, BAR_BORDER,
@@ -22,6 +24,7 @@ class Dashboard:
         self.soc = self.cap = None
         self.blink_on = False
         self.blink = None
+        self.cov_busy = False
         self.build()
 
     # ---- sizing ---------------------------------------------------------------------------------
@@ -394,22 +397,35 @@ class Dashboard:
 
     # ---- history-derived: today/MTD source split + peak markers (60 s cadence) --------------
     def update_covered(self):
+        if self.active and not self.cov_busy:
+            asyncio.create_task(self._covered_task())
+
+    async def _covered_task(self):
+        """Today / billing-cycle source split and peak markers from the history ring (heavy: runs as a coroutine)."""
         h = self.app.services.get("history")
-        if not h or not self.active:
+        if not h or not h.n:
             return
-        d = h.day_stats()
-        if not d:
-            return
-        for lbl, (solar, batt, load) in ((self.l_daily_split, d["today"]), (self.l_mtd_split, d["mtd"])):
-            self._covered(lbl, solar, batt, load)
-        self._split_bar(*d["today"])
-        pk = d["peaks"]
-        self.pk["sol"].set(15, 364, 176, pk["pv"], self.sol_kw, 0)
-        self.pk["load"].set(15, 364, 176, pk["load"], self.inv_kw, 0)
-        self.pk["bchg"].set(146, 132, 176, pk["batt_chg"], self.inv_kw, +1)
-        self.pk["bdis"].set(146, -132, 176, pk["batt_dis"], self.inv_kw, -1)
-        self.pk["gimp"].set(196, 180, 176, pk["grid_imp"], self.inv_kw, +1)
-        self.pk["gexp"].set(196, -180, 176, pk["grid_exp"], self.inv_kw, -1)
+        self.cov_busy = True
+        try:
+            m = self.app.services.get("monthly")
+            now = T.unix_now()
+            today_start = tz.day_start(now)
+            mtd_start = (m.billing_start_epoch() if m else None) or today_start
+            d = await h.day_stats(mtd_start, today_start, now)
+            if not self.active:
+                return
+            for lbl, (solar, batt, load) in ((self.l_daily_split, d["today"]), (self.l_mtd_split, d["mtd"])):
+                self._covered(lbl, solar, batt, load)
+            self._split_bar(*d["today"])
+            pk = d["peaks"]
+            self.pk["sol"].set(15, 364, 176, pk["pv"], self.sol_kw, 0)
+            self.pk["load"].set(15, 364, 176, pk["load"], self.inv_kw, 0)
+            self.pk["bchg"].set(146, 132, 176, pk["batt_chg"], self.inv_kw, +1)
+            self.pk["bdis"].set(146, -132, 176, pk["batt_dis"], self.inv_kw, -1)
+            self.pk["gimp"].set(196, 180, 176, pk["grid_imp"], self.inv_kw, +1)
+            self.pk["gexp"].set(196, -180, 176, pk["grid_exp"], self.inv_kw, -1)
+        finally:
+            self.cov_busy = False
 
     def _covered(self, lbl, solar, batt, load):
         if load <= 0.05:
@@ -443,6 +459,9 @@ class Dashboard:
 
 # ---- page lifecycle (called by ui.shell) ---------------------------------------------------------------------
 def _on_show(self):
+    if getattr(self, "sizing_changed", False):
+        self.sizing_changed = False
+        self.rebuild()
     self.active = True
     self.refresh()
     self.update_covered()

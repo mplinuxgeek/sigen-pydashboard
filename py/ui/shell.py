@@ -76,6 +76,7 @@ class Shell:
     # ---- navigation -----------------------------------------------------------------------------------
     def go(self, idx):
         idx = max(0, min(idx, len(self.objs) - 1))
+        self.idle_timer.reset()
         if idx == self.active:
             self._paint_dots(lv.OPA.COVER)
             self.dot_timer.reset()

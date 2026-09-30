@@ -18,8 +18,8 @@ READ_TIMEOUT_S = 8
 MAX_BODY = 32768
 AUTH_FAILS, AUTH_WINDOW_S, AUTH_LOCK_S = 5, 60, 300
 
-_REASONS = {200: "OK", 204: "No Content", 302: "Found", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found",
-            405: "Method Not Allowed", 413: "Payload Too Large", 429: "Too Many Requests",
+_REASONS = {200: "OK", 204: "No Content", 302: "Found", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
+            404: "Not Found", 405: "Method Not Allowed", 409: "Conflict", 413: "Payload Too Large", 429: "Too Many Requests",
             500: "Internal Server Error", 503: "Service Unavailable"}
 
 
@@ -183,7 +183,7 @@ class Server:
             tok = self.token()
             if not tok or not constant_time_eq(given, tok):
                 self._note_fail(req.peer)
-                return err(401, "missing or invalid token")
+                return err(403, "missing or invalid X-OTA-Token")
         if not stream and req.length:
             if req.length > MAX_BODY:
                 return err(413, "body too large")
@@ -199,15 +199,29 @@ class Server:
         return 200, "application/json", json.dumps(res)
 
     async def _send(self, writer, status, ctype, body, extra=None):
+        streamed = hasattr(body, "__next__")            # generator of str/bytes chunks: length unknown, close-delimited
         if isinstance(body, str):
             body = body.encode()
-        head = ("HTTP/1.1 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\n"
-                "Access-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nConnection: close\r\n"
-                % (status, _REASONS.get(status, "OK"), ctype, len(body)))
+        head = ("HTTP/1.1 %d %s\r\nContent-Type: %s\r\n" % (status, _REASONS.get(status, "OK"), ctype))
+        if not streamed:
+            head += "Content-Length: %d\r\n" % len(body)
+        head += "Access-Control-Allow-Origin: *\r\nCache-Control: no-store\r\nConnection: close\r\n"
         if extra:
             for k, v in extra.items():
                 head += "%s: %s\r\n" % (k, v)
         writer.write(head.encode() + b"\r\n")
+        if streamed:
+            buf = b""
+            for chunk in body:
+                buf += chunk.encode() if isinstance(chunk, str) else chunk
+                if len(buf) >= 2048:
+                    writer.write(buf)
+                    await writer.drain()
+                    buf = b""
+            if buf:
+                writer.write(buf)
+                await writer.drain()
+            return
         mv = memoryview(body)
         for i in range(0, len(mv), 4096):
             writer.write(mv[i:i + 4096])

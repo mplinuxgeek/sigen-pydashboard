@@ -76,14 +76,16 @@ def _row565_to_rgb(src: ptr8, dst: ptr8, npx: int):
 
 
 @micropython.viper
-def _adler32(src: ptr8, n: int) -> int:
-    a = 1
-    b = 0
-    i = 0
-    while i < n:
+def _adler_update(src: ptr8, start: int, n: int, a0: int, b0: int) -> int:
+    """Adler-32 running update over src[start:start+n]; state in/out as a (b << 16) | a int."""
+    a = a0
+    b = b0
+    i = start
+    stop = start + n
+    while i < stop:
         end = i + 5552
-        if end > n:
-            end = n
+        if end > stop:
+            end = stop
         while i < end:
             a += int(src[i])
             b += a
@@ -94,17 +96,21 @@ def _adler32(src: ptr8, n: int) -> int:
 
 
 @micropython.viper
-def _deflate_fixed(src: ptr8, n: int, dst: ptr8, rowlen: int, rdrev: int, rdeb: int, rdev: int,
-                   lit: ptr16, lcode: ptr16, lnbits: ptr8, lebits: ptr8, leval: ptr8) -> int:
+def _deflate_strip(src: ptr8, base: int, n: int, abs0: int, dst: ptr8, rowlen: int, rdrev: int, rdeb: int, rdev: int,
+                   lit: ptr16, lcode: ptr16, lnbits: ptr8, lebits: ptr8, leval: ptr8, st: ptr32) -> int:
+    """Fixed-Huffman deflate of src[base:base+n] (which sits at absolute stream offset abs0; for later strips the
+    row before it is present at src[base-rowlen:base]). Bit-buffer state is carried in st[0] (bits), st[1] (count)."""
     o = 0
-    bb = 3              # block header: BFINAL=1, BTYPE=01 (fixed Huffman), LSB first
-    bc = 3
-    i = 0
-    while i < n:
+    bb = int(st[0])
+    bc = int(st[1])
+    i = base
+    stop = base + n
+    while i < stop:
         best = 0
         bd = 0
-        if i >= 3:
-            lim = n - i
+        ai = abs0 + i - base
+        if ai >= 3:
+            lim = stop - i
             if lim > 258:
                 lim = 258
             k = 0
@@ -112,7 +118,7 @@ def _deflate_fixed(src: ptr8, n: int, dst: ptr8, rowlen: int, rdrev: int, rdeb: 
                 k += 1
             best = k
             bd = 3
-            if i >= rowlen:
+            if ai >= rowlen:
                 k2 = 0
                 while k2 < lim and src[i + k2] == src[i + k2 - rowlen]:
                     k2 += 1
@@ -163,15 +169,8 @@ def _deflate_fixed(src: ptr8, n: int, dst: ptr8, rowlen: int, rdrev: int, rdeb: 
                 bb >>= 8
                 bc -= 8
             i += 1
-    bc += 7                            # end-of-block symbol (256): seven zero bits
-    while bc >= 8:
-        dst[o] = bb & 255
-        o += 1
-        bb >>= 8
-        bc -= 8
-    if bc > 0:
-        dst[o] = bb & 255
-        o += 1
+    st[0] = bb
+    st[1] = bc
     return o
 
 
@@ -180,29 +179,51 @@ def _chunk(tag, data):
     return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", crc)
 
 
+ROWS_PER_STRIP = 24
+
+
 async def encode_rgb565(fb, w, h):
-    """PNG bytes for an RGB565 little-endian framebuffer."""
+    """PNG bytes for an RGB565 little-endian framebuffer. Works in strips of ROWS_PER_STRIP rows (the previous
+    row is kept for the row-above match), so it needs well under 200 KB of contiguous heap for any screen size."""
+    import array
     global _tables
     if _tables is None:
         _tables = _build_tables()
-    rowlen = 1 + 3 * w
-    raw = bytearray(rowlen * h)
-    mv_fb = memoryview(fb)
-    mv_raw = memoryview(raw)
-    stride = 2 * w
-    for y in range(h):
-        _row565_to_rgb(mv_fb[y * stride:(y + 1) * stride], mv_raw[y * rowlen:(y + 1) * rowlen], w)
-        if y & 15 == 15:
-            await asyncio.sleep_ms(0)
-    n = len(raw)
-    out = bytearray(n + n // 8 + 1024)
-    rdrev, rdeb, rdev = _dist_code(rowlen)
-    rl = rowlen
     lit, lcode, lnbits, lebits, leval = _tables
-    await asyncio.sleep_ms(0)
-    m = _deflate_fixed(raw, n, out, rl, rdrev, rdeb, rdev, lit, lcode, lnbits, lebits, leval)
-    idat = b"\x78\x01" + bytes(memoryview(out)[:m]) + struct.pack(">I", _adler32(raw, n) & 0xFFFFFFFF)
+    rowlen = 1 + 3 * w
+    rdrev, rdeb, rdev = _dist_code(rowlen)
+    buf = bytearray(rowlen * (ROWS_PER_STRIP + 1))
+    mv = memoryview(buf)
+    out = bytearray(rowlen * ROWS_PER_STRIP * 9 // 8 + 256)
+    mvfb = memoryview(fb)
+    stride = 2 * w
+    st = array.array("i", [3, 3])              # bit buffer: block header BFINAL=1, BTYPE=01 (fixed Huffman)
+    idat = bytearray(b"\x78\x01")
+    adler = 1                                  # (b << 16) | a
+    prev_rows = 0
+    for y0 in range(0, h, ROWS_PER_STRIP):
+        r = min(ROWS_PER_STRIP, h - y0)
+        base = rowlen if y0 else 0
+        if y0:
+            buf[0:rowlen] = buf[base + (prev_rows - 1) * rowlen:base + prev_rows * rowlen]
+        for k in range(r):
+            y = y0 + k
+            _row565_to_rgb(mvfb[y * stride:(y + 1) * stride], mv[base + k * rowlen:base + (k + 1) * rowlen], w)
+        adler = _adler_update(buf, base, r * rowlen, adler & 0xFFFF, (adler >> 16) & 0xFFFF) & 0xFFFFFFFF
+        m = _deflate_strip(buf, base, r * rowlen, y0 * rowlen, out, rowlen, rdrev, rdeb, rdev,
+                           lit, lcode, lnbits, lebits, leval, st)
+        idat += memoryview(out)[:m]
+        prev_rows = r
+        await asyncio.sleep_ms(0)
+    bb, bc = st[0], st[1] + 7                  # end-of-block symbol (256): seven zero bits
+    while bc >= 8:
+        idat.append(bb & 255)
+        bb >>= 8
+        bc -= 8
+    if bc > 0:
+        idat.append(bb & 255)
+    idat += struct.pack(">I", adler)
     return (b"\x89PNG\r\n\x1a\n"
             + _chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-            + _chunk(b"IDAT", idat)
+            + _chunk(b"IDAT", bytes(idat))
             + _chunk(b"IEND", b""))

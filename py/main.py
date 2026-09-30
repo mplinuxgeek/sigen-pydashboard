@@ -3,7 +3,12 @@ import asyncio
 import gc
 
 import board
-from core import api, errors, log, http, modbus, portal, wifi as wifi_mod
+from core import api, api_data, errors, ota, log, http, modbus, portal, wifi as wifi_mod
+from core.ntp import Ntp
+from core.history import History
+from core.monthly import Monthly
+from core.backlight import Backlight
+from core.blank import Blank
 from core.app import App
 from core.state import State
 from core.dns import CaptiveDns
@@ -17,14 +22,30 @@ app = App()
 state = app.services["state"] = State()
 wifi = app.services["wifi"] = wifi_mod.WiFi(app)
 poller = app.services["poller"] = modbus.Poller(app)
+ntp = app.services["ntp"] = Ntp(app)
+app.on("net.up", lambda iface, ip: (setattr(ntp, "online", True), ntp.request()))
+backlight = app.services["backlight"] = Backlight(app, board)
+blank = app.services["blank"] = Blank(app, backlight)
+history = app.services["history"] = History(app)
+monthly = app.services["monthly"] = Monthly(app)
+history.listeners.append(monthly.sample)          # monthly totals piggy-back on every history sample
+ntp.callbacks.append(history.on_time_synced)
+ntp.callbacks.append(lambda: monthly.backfill_from_history(False))
 server = app.services["http"] = http.Server(app)
 portal_ = portal.Portal(app, server, wifi)
 portal_.install()
+
 api.register(app, server)
+api_data.register(app, server)
+ota.register(app, server)
 
 from ui.shell import Shell
 from ui.dashboard import Dashboard
 from ui.wifi_page import WifiPage
+from ui.graph import GraphPage
+from ui.monthly_page import MonthlyPage
+from ui.info_page import InfoPage
+from ui.settings_page import SettingsPage
 from ui import kit
 import lvgl as lv
 
@@ -47,7 +68,24 @@ def _dashboard(parent, shell):
     state.alive_cb.append(lambda a: d.active and d.paint_icons())
     app.on("net.up", lambda *a: d.active and d.paint_icons())
     app.on("net.down", lambda *a: d.active and d.paint_icons())
+    ntp.callbacks.append(lambda: d.active and d.paint_icons())
     return d
+
+
+def _graph(parent, shell):
+    return GraphPage(parent, app, shell)
+
+
+def _monthly(parent, shell):
+    return MonthlyPage(parent, app, shell)
+
+
+def _info(parent, shell):
+    return InfoPage(parent, app, shell)
+
+
+def _settings(parent, shell):
+    return SettingsPage(parent, app, shell)
 
 
 def _wifi_tab(parent, shell):
@@ -55,8 +93,8 @@ def _wifi_tab(parent, shell):
 
 
 shell = app.services["shell"] = Shell(app, board, [
-    ("Dashboard", _dashboard), ("Graph", _placeholder("Graph")), ("Monthly", _placeholder("Monthly")),
-    ("Info", _placeholder("System info")), ("Settings", _placeholder("Settings")), ("WiFi", _wifi_tab)])
+    ("Dashboard", _dashboard), ("Graph", _graph), ("Monthly", _monthly),
+    ("Info", _info), ("Settings", _settings), ("WiFi", _wifi_tab)])
 
 
 # ---- root page: setup portal while the AP is up, otherwise the landing page --------------------------------------
@@ -117,6 +155,11 @@ async def boot():
     app.spawn(wifi.run)
     app.spawn(server.start)
     app.spawn(poller.run)
+    app.spawn(ntp.run)
+    app.spawn(backlight.run)
+    app.spawn(blank.run)
+    app.spawn(ota.confirm_task(app), restart=False)
+    app.spawn(history.run)
     app.spawn(flow, restart=False)
     await app.start()
 
