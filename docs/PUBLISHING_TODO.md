@@ -23,7 +23,7 @@ A fresh clone must be able to produce the firmware.
 - [x] `THIRD_PARTY.md`: MicroPython, lv_binding_micropython, LVGL, Chart.js, Material Design Icons, tz data, Montserrat.
 - [x] README disclaimer (in THIRD_PARTY.md; README gets it in phase 4): unofficial, not affiliated with Sigenergy; trademarks belong to their owners.
 - [x] Licence of the inherited web page / API: the original `sigen-dashboard` is MIT, same author (Martin Pascoe), so no issue.
-- [x] Author identity: the original sigen-dashboard already publishes "Martin Pascoe <bircoe@gmail.com>"; added `.mailmap` so earlier "martin" commits map to it (history not rewritten; GitHub ignores .mailmap, so run `git rebase --root --exec` or filter-repo before publishing if the display name matters).
+- [x] Author identity: all commits rewritten to "Martin Pascoe <bircoe@gmail.com>" (matches the original sigen-dashboard; the unpublished pre-rewrite history is on local branch `backup-before-author-rewrite` — delete it before pushing with `git branch -D`).
 
 ## Phase 4 - README and docs
 - [x] Rewrite README: what it is, hardware list, screenshots, quick start (setup, build, flash, first boot), OTA, layout.
