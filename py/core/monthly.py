@@ -176,8 +176,11 @@ class Monthly:
         return tz.day_start(T.to_unix(y, m, d, 12))
 
     # ---- backfill / import ------------------------------------------------------------------------------
-    def backfill_from_history(self, force=False):
-        """Estimate missing completed days from the 5-minute power log (power x time). force=True overwrites."""
+    async def backfill_from_history(self, force=False):
+        """Estimate missing completed days from the 5-minute power log (power x time). force=True overwrites.
+        Works one day at a time (binary-searching that day's slice of the log) and yields between days, so it never
+        freezes the UI the way a single pass over every record did."""
+        import asyncio
         hist = self.app.services.get("history")
         ntp = self.app.services.get("ntp")
         if not hist or not hist.n or not (ntp and ntp.synced):
@@ -189,20 +192,25 @@ class Monthly:
         dth = 300 / 3600.0
         have = {d[0] for d in self.days}
         buckets = {}
-        for i in range(hist.n):
-            ts = hist.ts[i]
-            if not ts:
+        for dn in range(today - RETENTION_DAYS, today):                   # completed days only
+            if dn in have and not force:
                 continue
-            y, m, d = T.civil(ts + tz.offset(ts))[:3]
-            dn = T.days_from_civil(y, m, d)
-            if dn == today or (dn in have and not force):
+            y, m, d = T.civil_from_days(dn)
+            ny, nm, nd = T.civil_from_days(dn + 1)
+            start = tz.day_start(T.to_unix(y, m, d, 12))
+            end = tz.day_start(T.to_unix(ny, nm, nd, 12))
+            lo, hi = T.bisect_left(hist.ts, hist.n, start), T.bisect_left(hist.ts, hist.n, end)
+            if hi <= lo:
                 continue
-            b = buckets.setdefault(dn, [0.0, 0.0, 0.0, 0.0])
-            pv, load, grid = hist.pv[i] / 1000, hist.load[i] / 1000, hist.grid[i] / 1000
-            b[0] += (pv if pv > 0 else 0.0) * dth
-            b[1] += (grid if grid > 0 else 0.0) * dth
-            b[2] += (-grid if grid < 0 else 0.0) * dth
-            b[3] += (load if load > 0 else 0.0) * dth
+            b = [0.0, 0.0, 0.0, 0.0]
+            for i in range(lo, hi):
+                pv, load, grid = hist.pv[i] / 1000, hist.load[i] / 1000, hist.grid[i] / 1000
+                b[0] += (pv if pv > 0 else 0.0) * dth
+                b[1] += (grid if grid > 0 else 0.0) * dth
+                b[2] += (-grid if grid < 0 else 0.0) * dth
+                b[3] += (load if load > 0 else 0.0) * dth
+            buckets[dn] = b
+            await asyncio.sleep_ms(0)
         if not buckets:
             return 0
         merged = {d[0]: d for d in self.days if not (force and d[0] in buckets)}

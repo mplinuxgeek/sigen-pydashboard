@@ -1,6 +1,6 @@
 """Graph tab: one midnight-to-midnight chart of battery SOC (left axis, %) with solar / load / grid import / grid
 export power (right axis, kW), paged back through the history. Landscape layout of history_ui.c."""
-import asyncio
+from array import array
 
 import lvgl as lv
 
@@ -14,6 +14,18 @@ NONE = 0x7FFFFFFF
 C_BATT, C_SOLAR, C_LOAD, C_IMP, C_EXP = 0x02D001, 0xFF9800, 0x4DB6AD, 0xDC4646, 0xA280DB
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def bisect_left(arr, n, x):
+    """First index in the first n (ascending) entries of arr with arr[i] >= x."""
+    lo, hi = 0, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if arr[mid] < x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
 
 
 def join_gaps(vals, tss):
@@ -34,6 +46,8 @@ class GraphPage:
         self.app, self.parent = app, parent
         self.offset = 0
         self.hist_rev = -1
+        self.built_key = None
+        self._keep = []
         parent.set_style_bg_color(C.c(C.BG), 0)
         parent.set_style_bg_opa(lv.OPA.COVER, 0)
         parent.set_flex_flow(lv.FLEX_FLOW.COLUMN)
@@ -44,20 +58,26 @@ class GraphPage:
 
     def on_show(self):
         self.offset = 0
-        self.rebuild()
+        self.refresh()
 
-    def on_hide(self):
-        self.parent.clean()          # free the chart widgets while another tab is showing
+    def refresh(self):
+        """Rebuild only when something the chart shows has changed (day, new history samples, clock/sizing)."""
+        h = self.app.services["history"]
+        ntp = self.app.services.get("ntp")
+        key = (self.offset, h.rev, h.n, bool(ntp and ntp.synced), self.app.settings.get("sizing.inverter_kw", 25.0))
+        if key != self.built_key:
+            self.built_key = key
+            self.rebuild()
 
     def older(self):
         if self.offset < MAX_DAY_OFFSET:
             self.offset += 1
-        self.rebuild()
+        self.refresh()
 
     def newer(self):
         if self.offset > 0:
             self.offset -= 1
-        self.rebuild()
+        self.refresh()
 
     def placeholder(self, text):
         l = C.label(self.parent, text, 20, C.MUTED)
@@ -66,8 +86,15 @@ class GraphPage:
         l.set_style_align(lv.ALIGN.CENTER, 0)
 
     def rebuild(self):
+        import time
+        t0 = time.ticks_ms()
+        self._rebuild()
+        self.app.log.info("graph: rebuilt in %d ms" % time.ticks_diff(time.ticks_ms(), t0))
+
+    def _rebuild(self):
         p = self.parent
         p.clean()
+        self._keep = []
         top = lv.obj(p)
         top.remove_style_all()
         top.set_size(lv.pct(100), lv.SIZE_CONTENT)
@@ -104,9 +131,10 @@ class GraphPage:
         soc, solar, load = [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS
         gimp, gexp, sts = [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS, [0] * DAY_SLOTS
         have = False
-        for i in range(h.n):
+        lo, hi = bisect_left(h.ts, h.n, midnight), bisect_left(h.ts, h.n, midnight_next)    # only this day's records
+        for i in range(lo, hi):
             t = h.ts[i]
-            if t < midnight or t >= midnight_next:
+            if t == 0:
                 continue
             slot = min((t - midnight) // 300, DAY_SLOTS - 1)
             soc[slot] = h.soc[i]
@@ -124,7 +152,6 @@ class GraphPage:
             return
         for arr in (soc, solar, load, gimp, gexp):
             join_gaps(arr, sts)
-        self.app.log.info("graph: day %d..%d: %d soc points, first=%s" % (midnight, midnight_next, sum(1 for v in soc if v != NONE), [(k, v) for k, v in enumerate(soc) if v != NONE][:4]))
         inv_kw = float(self.app.settings.get("sizing.inverter_kw", 25.0))
         sec_max = int(inv_kw * 10)
         import board
@@ -162,8 +189,7 @@ class GraphPage:
                 ov.set_style_line_width(width, lv.PART.ITEMS)
                 ov.set_style_line_opa(opa, lv.PART.ITEMS)
                 ser = ov.add_series(kit.rgb(col), lv.chart.AXIS.SECONDARY_Y if sec else lv.chart.AXIS.PRIMARY_Y)
-                for k, v in enumerate(vals):
-                    ov.set_series_value_by_id(ser, k, v)
+                self.feed(ov, ser, vals)
                 ov.refresh()
             self.axis(row, 0.0, inv_kw, "kW", lv.FLEX_ALIGN.START)
         ax = lv.obj(p)
@@ -191,6 +217,16 @@ class GraphPage:
                                ("Load", C_LOAD, last(load, 10, "%.2f kW")), ("Grid Import", C_IMP, last(gimp, 10, "%.2f kW")),
                                ("Grid Export", C_EXP, last(gexp, 10, "%.2f kW"))):
             self.chip(leg, name, col, val)
+
+    def feed(self, chart, ser, vals):
+        """Hand a series to LVGL as one int32 array (no copy, no per-point calls); the array is kept alive by the page."""
+        arr = array("i", vals)
+        self._keep.append(arr)
+        try:
+            chart.set_series_ext_y_array(ser, arr)
+        except Exception:                                  # binding without the ext-array call: one call per point
+            for k, v in enumerate(vals):
+                chart.set_series_value_by_id(ser, k, v)
 
     def mini_chart(self, parent, title, axis_max, unit, series):
         """Portrait: one small chart per metric group (title, y axis column, framed chart with overlay series)."""
@@ -222,8 +258,7 @@ class GraphPage:
             ov.set_div_line_count(0, 0)
             ov.set_style_line_width(width, lv.PART.ITEMS)
             ser = ov.add_series(kit.rgb(col), lv.chart.AXIS.PRIMARY_Y)
-            for k, v in enumerate(vals):
-                ov.set_series_value_by_id(ser, k, v)
+            self.feed(ov, ser, vals)
             ov.refresh()
 
     def chart(self, stack, prim_max, sec_max):

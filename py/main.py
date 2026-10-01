@@ -14,7 +14,7 @@ from core.state import State
 from core.dns import CaptiveDns
 
 from core import settings as _settings
-board.init(_settings.get("orientation", "landscape") == "portrait")
+board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)))
 errors.install()
 log.restore()
 log.info("boot: MicroPython on ESP32-S3, PSRAM heap free %d KB" % (gc.mem_free() // 1024))
@@ -31,7 +31,7 @@ history = app.services["history"] = History(app)
 monthly = app.services["monthly"] = Monthly(app)
 history.listeners.append(monthly.sample)          # monthly totals piggy-back on every history sample
 ntp.callbacks.append(history.on_time_synced)
-ntp.callbacks.append(lambda: monthly.backfill_from_history(False))
+ntp.callbacks.append(lambda: asyncio.create_task(monthly.backfill_from_history(False)))
 server = app.services["http"] = http.Server(app)
 portal_ = portal.Portal(app, server, wifi)
 portal_.install()

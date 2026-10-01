@@ -57,3 +57,15 @@ def to_unix(y, m, d, h=0, mi=0, s=0):
 
 def days_in_month(y, m):
     return (31, 29 if y % 4 == 0 and (y % 100 or y % 400 == 0) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)[m - 1]
+
+
+def bisect_left(arr, n, x):
+    """First index in the first n (ascending) entries of arr with arr[i] >= x."""
+    lo, hi = 0, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if arr[mid] < x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo

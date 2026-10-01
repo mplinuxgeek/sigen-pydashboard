@@ -11,6 +11,7 @@ from machine import I2C, Pin
 PHYS_W, PHYS_H = rgb_lcd.WIDTH, rgb_lcd.HEIGHT      # the panel itself is 800x480 landscape
 W, H = PHYS_W, PHYS_H                                # logical size: swapped by init(portrait=True)
 portrait = False
+partial = False                                      # partial rendering into an SRAM buffer (always in portrait)
 CCW = False                                          # portrait rotation direction (False = 90 degrees clockwise)
 
 _I2C_SDA, _I2C_SCL = 8, 9
@@ -126,18 +127,26 @@ def _flush_cb(disp, area, color_p):
 
 
 def _flush_rot(disp, area, color_p):
-    """Portrait: rotate LVGL's partial buffer into the back frame buffer; when the frame is complete present it and
-    copy the touched rectangle into the other buffer so both stay identical (the next frame starts from it)."""
+    """Partial rendering (portrait: rotated). LVGL draws into one small internal-SRAM buffer (fast: blending never reads
+    the slow PSRAM frame buffer); each piece is copied into the back frame buffer, and when the frame is complete it is
+    presented and the touched rectangle copied into the other buffer so both stay identical for the next frame."""
     global _frame, _shown, _pu
     back = 1 - _shown
-    x1, y1, x2, y2 = rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, back, CCW)
+    t0 = time.ticks_ms()
+    if portrait:
+        x1, y1, x2, y2 = rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, back, CCW)
+    else:
+        x1, y1, x2, y2 = rgb_lcd.blit(_pbuf, area.x1, area.y1, area.x2, area.y2, back)
     if _pu is None:
         _pu = [x1, y1, x2, y2]
     else:
         _pu[0], _pu[1] = min(_pu[0], x1), min(_pu[1], y1)
         _pu[2], _pu[3] = max(_pu[2], x2), max(_pu[3], y2)
     if disp.flush_is_last():
+        t0 = time.ticks_ms()
         rgb_lcd.present(back, _pu[1], _pu[3])
+        _pres[0] += time.ticks_diff(time.ticks_ms(), t0)
+        _pres[1] = max(_pres[1], time.ticks_diff(time.ticks_ms(), t0))
         rgb_lcd.copy_rect(back, _shown, _pu[0], _pu[1], _pu[2], _pu[3])
         _shown = back
         _pu = None
@@ -147,7 +156,7 @@ def _flush_rot(disp, area, color_p):
 
 def front():
     """Framebuffer currently on screen (for screenshots)."""
-    if portrait:
+    if partial:
         return _fbs[_shown]
     return _fbs[(_frame - 1) & 1] if _frame else _fbs[0]
 
@@ -207,9 +216,10 @@ def frames():
     return _frame
 
 
-def init(portrait_mode=False):
-    """Bring up the panel. portrait_mode=True renders a 480x800 logical screen rotated into the 800x480 panel."""
-    global _disp, _indev, _touch, _fbs, W, H, portrait, _pbuf
+def init(portrait_mode=False, partial_render=True):
+    """Bring up the panel. portrait_mode=True renders a 480x800 logical screen rotated into the 800x480 panel.
+    partial_render (landscape): draw into a small internal-SRAM buffer instead of straight into the PSRAM frame buffers."""
+    global _disp, _indev, _touch, _fbs, W, H, portrait, partial, _pbuf
     if _disp:
         return _disp
     _ch422g_reset()
@@ -221,9 +231,10 @@ def init(portrait_mode=False):
         W, H = PHYS_H, PHYS_W
     _disp = lv.display_create(W, H)
     _disp.set_color_format(lv.COLOR_FORMAT.RGB565)
-    if portrait:
-        # rotated partial rendering: one 64-row internal-SRAM draw buffer, rotated into the panel by _flush_rot
-        _pbuf = rgb_lcd.buffer(W * 64 * 2)
+    partial = portrait or bool(partial_render)
+    if partial:
+        # partial rendering: one internal-SRAM draw buffer (~60 KB), copied (and rotated in portrait) by _flush_rot
+        _pbuf = rgb_lcd.buffer(W * (64 if portrait else 40) * 2)
         _disp.set_buffers(_pbuf, None, len(_pbuf), lv.DISPLAY_RENDER_MODE.PARTIAL)
         _disp.set_flush_cb(_flush_rot)
     else:

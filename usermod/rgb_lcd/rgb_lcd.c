@@ -226,6 +226,30 @@ static mp_obj_t rgb_lcd_blit_rot(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_blit_rot_obj, 7, 7, rgb_lcd_blit_rot);
 
+// blit(src, x1, y1, x2, y2, idx): copy the area x1..x2 / y1..y2 held row-major in src (rows packed, width x2-x1+1) into
+// frame buffer idx at the same place (landscape partial rendering: LVGL draws into fast internal SRAM, this copies it out).
+// Returns the rectangle written as (X1, Y1, X2, Y2).
+static mp_obj_t rgb_lcd_blit(size_t n_args, const mp_obj_t *args) {
+    mp_buffer_info_t bi;
+    mp_get_buffer_raise(args[0], &bi, MP_BUFFER_READ);
+    int x1 = mp_obj_get_int(args[1]), y1 = mp_obj_get_int(args[2]);
+    int x2 = mp_obj_get_int(args[3]), y2 = mp_obj_get_int(args[4]);
+    int idx = mp_obj_get_int(args[5]) & 1;
+    int w = x2 - x1 + 1;
+    if (x1 < 0 || y1 < 0 || x2 >= LCD_H_RES || y2 >= LCD_V_RES || w <= 0 || y2 < y1 ||
+        bi.len < (size_t)w * (size_t)(y2 - y1 + 1) * 2) {
+        mp_raise_ValueError(MP_ERROR_TEXT("area/buffer"));
+    }
+    const uint16_t *src = (const uint16_t *)bi.buf;
+    uint16_t *fb = (uint16_t *)s_fbs[idx];
+    for (int y = y1; y <= y2; y++) {
+        memcpy(fb + (size_t)y * LCD_H_RES + x1, src + (size_t)(y - y1) * w, (size_t)w * 2);
+    }
+    mp_obj_t t[4] = {mp_obj_new_int(x1), mp_obj_new_int(y1), mp_obj_new_int(x2), mp_obj_new_int(y2)};
+    return mp_obj_new_tuple(4, t);
+}
+static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_blit_obj, 6, 6, rgb_lcd_blit);
+
 // copy_rect(from_idx, to_idx, X1, Y1, X2, Y2): copy a physical rectangle between the two frame buffers, so both stay
 // identical after a partial (rotated) frame has been written into one of them.
 static mp_obj_t rgb_lcd_copy_rect(size_t n_args, const mp_obj_t *args) {
@@ -263,6 +287,7 @@ static const mp_rom_map_elem_t rgb_lcd_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&rgb_lcd_present_obj)},
     {MP_ROM_QSTR(MP_QSTR_vsync_waits), MP_ROM_PTR(&rgb_lcd_vsync_waits_obj)},
     {MP_ROM_QSTR(MP_QSTR_buffer), MP_ROM_PTR(&rgb_lcd_buffer_obj)},
+    {MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&rgb_lcd_blit_obj)},
     {MP_ROM_QSTR(MP_QSTR_blit_rot), MP_ROM_PTR(&rgb_lcd_blit_rot_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy_rect), MP_ROM_PTR(&rgb_lcd_copy_rect_obj)},
     {MP_ROM_QSTR(MP_QSTR_stats), MP_ROM_PTR(&rgb_lcd_stats_obj)},

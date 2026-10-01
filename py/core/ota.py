@@ -44,6 +44,20 @@ def _rm_tree(p):
         pass
 
 
+async def _rm_tree_async(p):
+    """Like _rm_tree but yields between files, so deleting the backup of a big update does not freeze the UI."""
+    try:
+        if _isdir(p):
+            for n in os.listdir(p):
+                await _rm_tree_async(p + "/" + n)
+            os.rmdir(p)
+        else:
+            os.remove(p)
+    except OSError:
+        pass
+    await asyncio.sleep_ms(0)
+
+
 def _mkdirs(path):
     cur = ""
     for part in path.strip("/").split("/"):
@@ -170,7 +184,7 @@ def confirm_task(app):
         if _exists("/ota_pending"):
             await asyncio.sleep(50)
             os.remove("/ota_pending")
-            _rm_tree("/ota_bak")
+            await _rm_tree_async("/ota_bak")
             app.log.info("ota: Python update confirmed")
     return run
 

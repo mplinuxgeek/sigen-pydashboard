@@ -153,7 +153,7 @@ def register(app, server):
         app.log.info("history import: parsed %d rows in %d ms, stored in %d ms" % (
             count, time.ticks_diff(t_parsed, t_start), time.ticks_diff(time.ticks_ms(), t_parsed)))
         imp = None
-        monthly.backfill_from_history(True)
+        await monthly.backfill_from_history(True)
         return {"status": "ok", "imported": count}
 
     def monthly_json(req):
