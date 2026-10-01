@@ -104,6 +104,9 @@ _y1 = _y2 = None       # dirty rows of the frame being rendered
 _prev = None           # dirty rows of the previous frame (LVGL copies them into the next back buffer)
 
 
+_pres = [0, 0]      # per stats window: total / worst ms spent waiting in present() (vsync)
+
+
 def _flush_cb(disp, area, color_p):
     global _frame, _y1, _y2, _prev
     _y1 = area.y1 if _y1 is None else min(_y1, area.y1)
@@ -112,7 +115,10 @@ def _flush_cb(disp, area, color_p):
         y1, y2 = _y1, _y2
         if _prev:  # rows LVGL synced from the last frame must reach RAM too
             y1, y2 = min(y1, _prev[0]), max(y2, _prev[1])
+        t0 = time.ticks_ms()
         rgb_lcd.present(_frame & 1, y1, y2)
+        _pres[0] += time.ticks_diff(time.ticks_ms(), t0)
+        _pres[1] = max(_pres[1], time.ticks_diff(time.ticks_ms(), t0))
         _prev = (_y1, _y2)
         _y1 = _y2 = None
         _frame += 1
@@ -223,9 +229,9 @@ def init(portrait_mode=False):
     else:
         _disp.set_buffers(_fbs[0], _fbs[1], len(_fbs[0]), lv.DISPLAY_RENDER_MODE.DIRECT)
         _disp.set_flush_cb(_flush_cb)
-    # The RGB panel scans out at ~37 Hz (13.5 MHz pixel clock), and each present() waits for it, so redrawing
-    # faster than ~33 ms only burns CPU. Touch is polled at the same rate.
-    _disp.get_refr_timer().set_period(30)
+    # Input latency: touch is polled every 10 ms and a redraw is started as soon as something changed (10 ms refresh
+    # timer). The panel itself (~37 Hz) plus two vsync waits in present() set the floor for what you actually see.
+    _disp.get_refr_timer().set_period(10)
     # dark default theme so keyboards, text areas, dropdowns etc. match the app
     th = lv.theme_default_init(_disp, lv.color_hex(0x6366F1), lv.color_hex(0x38BDF8), True, lv.font_montserrat_16)
     _disp.set_theme(th)
@@ -234,7 +240,7 @@ def init(portrait_mode=False):
         _indev = lv.indev_create()
         _indev.set_type(lv.INDEV_TYPE.POINTER)
         _indev.set_read_cb(_read_cb)
-        _indev.get_read_timer().set_period(30)
+        _indev.get_read_timer().set_period(10)
     except OSError as e:
         print("touch disabled:", e)
     return _disp
@@ -274,6 +280,14 @@ def _loop_error(e):
         print("ui loop error:", e)
 
 
+def _loop_error_log(msg):
+    try:
+        from core import log
+        log.warn(msg)
+    except Exception:
+        print(msg)
+
+
 async def _loop():
     global _up_ms
     _start_watchdog()
@@ -283,11 +297,14 @@ async def _loop():
     busy = 0
     worst = 0
     worst_gap = 0
+    last_handler = 0
     while True:
         now = time.ticks_ms()
         dt = time.ticks_diff(now, last)
         if dt > worst_gap:
             worst_gap = dt
+        if dt > 300:                       # something held the whole event loop (touch included) for a while
+            _loop_error_log("ui: event loop stalled %d ms (previous handler %d ms)" % (dt, last_handler))
         _up_ms += dt
         lv.tick_inc(dt)
         last = now
@@ -299,6 +316,7 @@ async def _loop():
         except Exception as e:           # callbacks are protected in C; this is the last line of defence
             _loop_error(e)
         d = time.ticks_diff(time.ticks_ms(), t0)
+        last_handler = d
         busy += d
         if d > worst:
             worst = d
@@ -310,10 +328,12 @@ async def _loop():
             stats["load"] = min(100, busy * 100 // wall)
             stats["max_ms"] = worst
             stats["stall_ms"] = worst_gap                 # longest time between two loop iterations
+            stats["present_ms"], stats["present_max"] = _pres[0], _pres[1]
+            _pres[0] = _pres[1] = 0
             win_start = time.ticks_ms()
             win_frames0 = _frame
             busy = worst = worst_gap = 0
-        await asyncio.sleep_ms(5)
+        await asyncio.sleep_ms(2)
 
 
 def start():

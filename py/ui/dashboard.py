@@ -12,7 +12,7 @@ from .kit import (LEFT, RIGHT, CENTER, NO_DATA, LABEL, TITLE, SOL_FILL, SOL_BORD
 
 MDI_WIFI, MDI_CLOCK, MDI_HOME_BATT = "", "", ""
 SPLIT_SOLAR, SPLIT_BATT, SPLIT_GRID = "", "", ""
-BLINK_MS = 120
+BLINK_MS = 150
 
 
 class Dashboard:
@@ -25,6 +25,7 @@ class Dashboard:
         self.blink_on = False
         self.blink = None
         self.cov_busy = False
+        self._last_act = None
         self.build()
 
     # ---- sizing ---------------------------------------------------------------------------------
@@ -317,11 +318,16 @@ class Dashboard:
         self.i_modbus.set_style_text_color(kit.rgb(kit.STATUS_OK if svc["state"].alive else NO_DATA), 0)
 
     def _blink(self, t):
-        """HDD-activity-light blink for the Modbus icon while a request is on the wire."""
+        """Activity light for the Modbus icon: one short flash per request on the wire, then back to the steady colour.
+        (Toggling continuously while a poll cycle runs repainted ~8 frames/s and kept the UI loop ~50 % busy, which is what
+        made touch feel laggy: every repaint blocks the loop for the panel's two-frame present.)"""
         state = self.app.services["state"]
-        if state.is_active():
-            self.blink_on = not self.blink_on
-            self.i_modbus.set_style_text_color(kit.rgb(kit.MODBUS_BUSY if self.blink_on else NO_DATA), 0)
+        act = state._activity
+        if act != self._last_act:
+            self._last_act = act
+            if not self.blink_on:
+                self.blink_on = True
+                self.i_modbus.set_style_text_color(kit.rgb(kit.MODBUS_BUSY), 0)
         elif self.blink_on:
             self.blink_on = False
             self.i_modbus.set_style_text_color(kit.rgb(kit.STATUS_OK if state.alive else NO_DATA), 0)

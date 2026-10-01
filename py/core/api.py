@@ -140,7 +140,7 @@ def register(app, server):
                 "last_reboot_trigger": settings.get("last_reboot"), "last_reboot_trigger_uptime_s": None,
                 "lvgl_lock_held_ms": 0, "lvgl_lock_holder": None, "internal_free": f, "internal_largest_block": big,
                 "internal_min_free": f, "psram_free": pf, "log_bytes": L.rev, "last_coredump": "none",
-                "py_free": gc.mem_free(), "requests": server.requests,
+                "py_free": gc.mem_free(), "requests": server.requests, "ui": __import__("board").stats,
                 "time": {"unix": T.unix_now(), "synced": bool(svc["ntp"].synced), "status": svc["ntp"].status_text()}}
 
     def _reset_reason():
