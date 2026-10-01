@@ -23,7 +23,7 @@ A fresh clone must be able to produce the firmware.
 - [x] `THIRD_PARTY.md`: MicroPython, lv_binding_micropython, LVGL, Chart.js, Material Design Icons, tz data, Montserrat.
 - [x] README disclaimer (in THIRD_PARTY.md; README gets it in phase 4): unofficial, not affiliated with Sigenergy; trademarks belong to their owners.
 - [x] Licence of the inherited web page / API: the original `sigen-dashboard` is MIT, same author (Martin Pascoe), so no issue.
-- [x] Author identity: all commits rewritten to "Martin Pascoe <bircoe@gmail.com>" (matches the original sigen-dashboard; the unpublished pre-rewrite history is on local branch `backup-before-author-rewrite` — delete it before pushing with `git branch -D`).
+- [x] Author identity: all commits rewritten to "Martin Pascoe <bircoe@gmail.com>" (matches the original sigen-dashboard); history was unpublished so it was rewritten in place.
 
 ## Phase 4 - README and docs
 - [x] Rewrite README: what it is, hardware list, screenshots, quick start (setup, build, flash, first boot), OTA, layout.
@@ -48,4 +48,4 @@ A fresh clone must be able to produce the firmware.
 ## Phase 7 - Release
 - [x] Prebuilt firmware as release assets: `.github/workflows/release.yml` (trigger: release published) builds factory image (firmware + Python app, verified: a littlefs image from `scripts/make_fs_image.py` boots on the real board), OTA firmware, app tar and checksums. See `docs/releasing.md`.
 - [x] Repository: github.com/mplinuxgeek/sigen-pydashboard (README links updated). Suggested description: "Sigenergy SigenStor battery/solar dashboard for the Waveshare ESP32-S3 7-inch touch display, in MicroPython + LVGL". Topics: micropython, lvgl, esp32-s3, sigenergy, solar, modbus, home-energy.
-- [ ] Final pass: fresh clone, follow the README literally, on a real board.
+- [ ] Final pass: after the first release build, flash `sigen-pydashboard-factory.bin` on a real board and follow the README literally.
