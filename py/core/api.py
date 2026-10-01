@@ -5,15 +5,14 @@ Open GETs are read-only telemetry; anything that writes, erases, reboots or reve
 import asyncio
 import gc
 import json
-import sys
 import time
 
 import machine
 
-from . import http, log, tz
+from . import http, log, tz, version
 from . import timeutil as T
 
-VERSION = "0.1.0"
+VERSION = version.VERSION
 PROJECT = "sigen-dashboard-py"
 
 # (method, path, auth, description, example curl or None)

@@ -14,7 +14,7 @@ from core.state import State
 from core.dns import CaptiveDns
 
 from core import settings as _settings
-board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)), _settings.get("ui.rows"), bool(_settings.get("ui.single", False)))
+board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)), _settings.get("ui.rows"), bool(_settings.get("ui.single", True)))
 errors.install()
 log.restore()
 log.info("boot: MicroPython on ESP32-S3, PSRAM heap free %d KB" % (gc.mem_free() // 1024))

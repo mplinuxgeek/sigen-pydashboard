@@ -5,7 +5,7 @@ import time
 
 import lvgl as lv
 
-from core import timeutil as T, tz
+from core import tz
 from . import common as C
 
 

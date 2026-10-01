@@ -1,7 +1,6 @@
 """Captive portal: while the AP is up, GET / serves the WiFi setup page, /scan lists networks, /save stores
 the credentials and reboots into station mode, and every other path redirects to /."""
 import asyncio
-import json
 
 from . import http
 

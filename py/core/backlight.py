@@ -11,7 +11,7 @@ below BL_ACTIVE_FLOOR. A manual override expires when the curve next moves; any 
 import asyncio
 import time
 
-from . import timeutil as T, tz
+from . import tz
 
 BL_ACTIVE_FLOOR = 3
 BOOST_PERCENT = 125

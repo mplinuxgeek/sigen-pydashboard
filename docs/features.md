@@ -30,10 +30,10 @@ On first boot (or lost credentials), the device opens an AP with a captive porta
 
 A dropped link reconnects on its own, with exponential backoff from 1s to 30s, so a router reboot doesn't leave the device stranded until someone power-cycles it. Deliberate disconnects (Disconnect, Forget, or connecting to a different network) suppress the retry, so "disconnected" stays disconnected.
 
-WiFi credentials are stored in NVS unencrypted (no flash encryption configured). Anyone with physical UART/JTAG access to the board can read them out. Not remotely reachable, just worth knowing before handing the device to someone else or reusing it on a network you'd rather its previous owner not have lasting access to.
+WiFi credentials are stored unencrypted in `settings.json` on the board's flash filesystem (no flash encryption configured). Anyone with physical UART/JTAG access to the board can read them out. Not remotely reachable, just worth knowing before handing the device to someone else or reusing it on a network you'd rather its previous owner not have lasting access to.
 
 ## Display orientation
-Landscape (800×480) or portrait (480×800), switchable on-device via **Screen Orientation** in the System tab and persisted to NVS — the change takes effect on restart. Every screen has a portrait layout: the dashboard's 2×2 quadrant grid becomes four stacked bands, the graph becomes three mini charts with the legend below, and the Settings form stacks above the on-screen keyboard instead of sitting beside it.
+Landscape (800×480) or portrait (480×800), switchable on-device via **Screen Orientation** in the System tab and persisted in settings — the change takes effect on restart. Every screen has a portrait layout: the dashboard's 2×2 quadrant grid becomes four stacked bands, the graph becomes three mini charts with the legend below, and the Settings form stacks above the on-screen keyboard instead of sitting beside it.
 
 Pixels are rotated by a hand-written flush callback. The vendor BSP's own rotation support is LVGL v8-only dead code on this v9 port, and LVGL's software rotation never reaches an RGB panel driven this way.
 

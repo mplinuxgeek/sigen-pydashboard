@@ -24,7 +24,6 @@ class SettingsPage:
         self.country_codes = []
         self.zone_list = []
         self.country_opts = None
-        s = app.settings
         parent.set_style_bg_color(C.c(C.BG), 0)
         parent.set_style_bg_opa(lv.OPA.COVER, 0)
         parent.set_flex_flow(lv.FLEX_FLOW.COLUMN)

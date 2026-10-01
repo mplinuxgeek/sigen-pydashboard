@@ -1,6 +1,5 @@
 """History and monthly-totals endpoints: JSON / CSV export, CSV import (streamed, token required)."""
 import asyncio
-import json
 
 from . import http, tz
 from . import timeutil as T

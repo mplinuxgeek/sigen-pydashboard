@@ -2,7 +2,7 @@
 
 Everything the device exposes lives on the same server (port 80; asyncio HTTP server in `py/core/http.py`) and answers JSON, with CORS and `Cache-Control: no-store` on every route.
 
-`GET /api` describes the device to whoever asked. Open it in a browser and you get a readable page — every route, which ones need the token, a copy-pasteable curl line for each gated one, and clickable links for the open GETs. Hit it with curl and the same URL returns JSON. Content negotiation picks by `Accept`, and `?format=html` / `?format=json` overrides it. Both renderings come from one table in `api_common.c`, so they can't drift apart.
+`GET /api` describes the device to whoever asked. Open it in a browser and you get a readable page — every route, which ones need the token, a copy-pasteable curl line for each gated one, and clickable links for the open GETs. Hit it with curl and the same URL returns JSON. Content negotiation picks by `Accept`, and `?format=html` / `?format=json` overrides it. Both renderings come from one table in `py/core/api.py`, so they can't drift apart.
 
 | Method | Path | Auth | Purpose |
 | :--- | :--- | :---: | :--- |
@@ -10,9 +10,11 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | GET | `/api/health` | — | Uptime, reset reason, version, heap, UI-lock holder |
 | GET | `/api/system` | — | Full snapshot: firmware, boot, network, inverter, memory, orientation, chip |
 | GET | `/api/version` | — | Running and inactive slot versions |
-| GET | `/api/ota` | — | Running build info (what `deploy.py` checks) |
+| GET | `/api/ota` | — | Running build info (what `scripts_ota.sh` checks) |
 | POST | `/api/ota` | ✓ | Upload a MicroPython firmware `.bin` into the inactive OTA slot, then reboot into it (rolls back unless the new image stays up 10 s) |
 | POST | `/api/ota/py` | ✓ | Upload the Python application (a `.tar` of `py/`), applied with a backup; `boot.py` rolls back after 3 failed boots |
+| POST | `/api/tuning` | ✓ | Rendering knobs `ui.partial`, `ui.rows`, `ui.single`, `ui.animate` (JSON body, `null` = default); applied on restart. See `docs/architecture.md` |
+| POST | `/api/bench/render` | ✓ | Diagnostics: force and time three full-page redraws of the current page (used by `bench.sh`) |
 | POST | `/api/history/clear` | ✓ | Clear the stored history |
 | GET | `/api/monthly` | — | Monthly totals as JSON: `history`, `current`, `current_billing` |
 | POST | `/api/factory-reset` | ✓ | Erase WiFi, Modbus, history, totals and settings, then restart |
@@ -52,7 +54,7 @@ Errors are always `{"error":"..."}` with a real status code. `/api/health` is de
 See [Diagnostics](diagnostics.md) for the log-tailing/health-check endpoints in more depth, and [Deployment & OTA](deployment.md) for the OTA-specific ones.
 
 
-## Differences from the ESP-IDF build
+## Differences from the original ESP-IDF firmware
 
 * `/api/coredump/erase` is a no-op (MicroPython has no core dump partition); `/api/health`'s `lvgl_lock_*` fields are always `0`/`null` (no LVGL lock: one cooperative event loop).
 * Bad token → `403` (lockout → `429`), same as before. `/api/health` and `/api/system` additionally report `py_free` / `python_free` (MicroPython heap).

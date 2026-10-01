@@ -7,15 +7,12 @@ Power is signed the same way as the live readings: battery >0 charging, grid >0 
 """
 import asyncio
 import struct
-import time
 from array import array
 
 import esp32
 import micropython
 
-from . import state as st
 from . import timeutil as T
-from . import tz
 
 INTERVAL_S = 300
 CAPACITY = 31 * 24 * 3600 // INTERVAL_S          # 8928

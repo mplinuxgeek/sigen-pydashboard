@@ -2,8 +2,6 @@
 import asyncio
 import time
 
-DEBUG = False   # print touch/frame timing to the serial console
-
 import rgb_lcd
 import lvgl as lv
 from machine import I2C, Pin
@@ -235,10 +233,6 @@ def _read_cb(indev, data):
     except OSError:
         _touch.errors += 1
         pressed = False
-    global _last_pressed
-    if DEBUG and pressed != _last_pressed:
-        print("[touch]", "down" if pressed else "up", _touch.x, _touch.y, time.ticks_ms())
-    _last_pressed = pressed
     if portrait:                       # panel coordinates -> rotated logical coordinates
         if CCW:
             data.point.x, data.point.y = PHYS_H - 1 - _touch.y, _touch.x
@@ -249,8 +243,6 @@ def _read_cb(indev, data):
         data.point.y = _touch.y
     data.state = lv.INDEV_STATE.PRESSED if pressed else lv.INDEV_STATE.RELEASED
 
-
-_last_pressed = False
 
 stats = {"fps": 0.0, "load": 0, "max_ms": 0, "errors": 0, "stall_ms": 0}
 _wdt = None
@@ -281,7 +273,7 @@ def init(portrait_mode=False, partial_render=True, rows=None, single_buffer=Fals
     _disp = lv.display_create(W, H)
     _disp.set_color_format(lv.COLOR_FORMAT.RGB565)
     partial = portrait or bool(partial_render)
-    single = partial and bool(single_buffer)
+    single = partial and not portrait and bool(single_buffer)    # portrait keeps the tear-free double buffer
     if partial:
         # partial rendering: one internal-SRAM draw buffer (~60 KB), copied (and rotated in portrait) by _flush_rot
         _pbuf = rgb_lcd.buffer(W * (rows or (64 if portrait else 40)) * 2)
@@ -388,8 +380,6 @@ async def _loop():
         busy += d
         if d > worst:
             worst = d
-        if DEBUG and d > 100:
-            print("[slow frame]", d, "ms at", t0)
         wall = time.ticks_diff(time.ticks_ms(), win_start)
         if wall >= 2000:
             stats["fps"] = (_frame - win_frames0) * 1000 / wall

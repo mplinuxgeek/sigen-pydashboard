@@ -7,9 +7,7 @@ on the inverter: esp-modbus's "CDAB"/"GHEFCDAB" names in the ESP-IDF build descr
 """
 import asyncio
 import struct
-import time
 
-from . import state as st
 
 PLANT_ADDR = 247
 DEVICE_ADDR = 1
