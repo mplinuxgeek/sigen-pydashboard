@@ -250,6 +250,35 @@ static mp_obj_t rgb_lcd_blit(size_t n_args, const mp_obj_t *args) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(rgb_lcd_blit_obj, 6, 6, rgb_lcd_blit);
 
+// slide(done, step, dir): one step of a horizontal push transition inside frame buffer 0, which is being scanned out.
+// Buffer 1 holds the incoming page. `done` columns of it are already pushed in; push `step` more. dir>0: the page moves
+// left (new one enters from the right), dir<0: it moves right. Starts at a vsync so the shift outruns the scan-out.
+// Returns the milliseconds the copy took.
+static mp_obj_t rgb_lcd_slide(mp_obj_t done_o, mp_obj_t step_o, mp_obj_t dir_o) {
+    int done = mp_obj_get_int(done_o), step = mp_obj_get_int(step_o), dir = mp_obj_get_int(dir_o);
+    if (done < 0 || step <= 0 || done + step > LCD_H_RES) {
+        mp_raise_ValueError(MP_ERROR_TEXT("slide range"));
+    }
+    while (xSemaphoreTake(s_vsync_sem, 0) == pdTRUE) {
+    }
+    xSemaphoreTake(s_vsync_sem, pdMS_TO_TICKS(100));
+    int64_t t0 = esp_timer_get_time();
+    uint16_t *a = (uint16_t *)s_fbs[0], *b = (uint16_t *)s_fbs[1];
+    int now = done + step;
+    for (int y = 0; y < LCD_V_RES; y++) {
+        uint16_t *ra = a + (size_t)y * LCD_H_RES, *rb = b + (size_t)y * LCD_H_RES;
+        if (dir > 0) {
+            memmove(ra, ra + step, (size_t)(LCD_H_RES - step) * 2);
+            memcpy(ra + LCD_H_RES - step, rb + done, (size_t)step * 2);
+        } else {
+            memmove(ra + step, ra, (size_t)(LCD_H_RES - step) * 2);
+            memcpy(ra, rb + LCD_H_RES - now, (size_t)step * 2);
+        }
+    }
+    return mp_obj_new_int((esp_timer_get_time() - t0) / 1000);
+}
+static MP_DEFINE_CONST_FUN_OBJ_3(rgb_lcd_slide_obj, rgb_lcd_slide);
+
 // copy_rect(from_idx, to_idx, X1, Y1, X2, Y2): copy a physical rectangle between the two frame buffers, so both stay
 // identical after a partial (rotated) frame has been written into one of them.
 static mp_obj_t rgb_lcd_copy_rect(size_t n_args, const mp_obj_t *args) {
@@ -287,6 +316,7 @@ static const mp_rom_map_elem_t rgb_lcd_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&rgb_lcd_present_obj)},
     {MP_ROM_QSTR(MP_QSTR_vsync_waits), MP_ROM_PTR(&rgb_lcd_vsync_waits_obj)},
     {MP_ROM_QSTR(MP_QSTR_buffer), MP_ROM_PTR(&rgb_lcd_buffer_obj)},
+    {MP_ROM_QSTR(MP_QSTR_slide), MP_ROM_PTR(&rgb_lcd_slide_obj)},
     {MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&rgb_lcd_blit_obj)},
     {MP_ROM_QSTR(MP_QSTR_blit_rot), MP_ROM_PTR(&rgb_lcd_blit_rot_obj)},
     {MP_ROM_QSTR(MP_QSTR_copy_rect), MP_ROM_PTR(&rgb_lcd_copy_rect_obj)},

@@ -20,6 +20,7 @@ class Shell:
         self.active = 0
         self.pages, self.objs = [], []
         self.suppress = False
+        self.animate = bool(app.settings.get("ui.animate", True))
         scr = self.scr = lv.screen_active()
         scr.clean()
         scr.set_style_bg_color(kit.rgb(kit.SCREEN_BG), 0)
@@ -84,6 +85,8 @@ class Shell:
             self.dot_timer.reset()
             return
         prev = self.active
+        if self.animate and self.board.can_slide():
+            self.board.start_slide(1 if idx > prev else -1)
         self.objs[prev].add_flag(lv.obj.FLAG.HIDDEN)
         self.active = idx
         self.objs[idx].remove_flag(lv.obj.FLAG.HIDDEN)

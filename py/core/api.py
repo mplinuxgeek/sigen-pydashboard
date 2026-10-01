@@ -142,7 +142,7 @@ def register(app, server):
                 "last_reboot_trigger": settings.get("last_reboot"), "last_reboot_trigger_uptime_s": None,
                 "lvgl_lock_held_ms": 0, "lvgl_lock_holder": None, "internal_free": f, "internal_largest_block": big,
                 "internal_min_free": f, "psram_free": pf, "log_bytes": L.rev, "last_coredump": "none",
-                "py_free": gc.mem_free(), "requests": server.requests, "ui": __import__("board").stats,
+                "py_free": gc.mem_free(), "requests": server.requests, "ui": dict(__import__("board").stats, slide_ms=__import__("board").slide_ms),
                 "time": {"unix": T.unix_now(), "synced": bool(svc["ntp"].synced), "status": svc["ntp"].status_text()}}
 
     def _reset_reason():
@@ -511,7 +511,7 @@ def register(app, server):
         if err:
             return err
         for k, v in d.items():
-            if k not in ("ui.partial", "ui.rows", "ui.single"):
+            if k not in ("ui.partial", "ui.rows", "ui.single", "ui.animate"):
                 return http.err(400, "unknown key " + k)
             if v is None:
                 settings.delete(k)

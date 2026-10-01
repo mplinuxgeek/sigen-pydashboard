@@ -63,10 +63,12 @@ Notes: use `mpremote ... resume` (a soft reset is fine here, but `resume` avoids
 * Firmware OTA needs the dual-slot partition layout (flash it over USB once).
 * The app files live in FAT, so `main.py` etc. can be edited on the board.
 
-## Why page swipes are instant
-Animated swipes were tried twice (finger-follow slide of the live widgets, then sliding LVGL snapshots). Neither is usable: the
-RGB panel scans its frame buffers out of the same PSRAM the CPU draws into, leaving roughly 25 MB/s; a full-screen slide needs
-~2 MB per frame (about 5 fps measured) and a page snapshot costs ~0.4 s. Pages flip instantly instead.
+## Page swipes
+Landscape + single-buffer mode (the default) slides pages: the new page is rendered off-screen into the spare frame buffer
+(~100-250 ms), then `rgb_lcd.slide()` pushes it across the live buffer in 4-5 eased steps over ~240 ms. Each step moves
+~768 KB of PSRAM in ~55 ms (PSRAM bandwidth is shared with the panel scan-out), so the motion is ~15 fps, not 60. Portrait and
+non-single modes flip instantly. Turn the slide off with `POST /api/tuning {"ui.animate":false}` + restart.
+Earlier attempts (finger-follow, LVGL snapshots) were unusable: ~5 fps and 0.4 s per snapshot.
 
 ## Status
 Verified on hardware: WiFi join + on-device setup, live Modbus data, dashboard/graph/monthly/info/settings/WiFi screens in both

@@ -11,6 +11,9 @@ from machine import I2C, Pin
 PHYS_W, PHYS_H = rgb_lcd.WIDTH, rgb_lcd.HEIGHT      # the panel itself is 800x480 landscape
 W, H = PHYS_W, PHYS_H                                # logical size: swapped by init(portrait=True)
 portrait = False
+_tgt = 0                                             # frame buffer LVGL renders into in single mode (1 = off-screen, for slides)
+slide_req = None                                     # (direction, frame at request) while a page slide waits for its render
+slide_ms = []                                        # last slide's per-step copy times (diagnostics)
 single = False                                       # partial rendering straight into the live frame buffer (no swap, no wait)
 partial = False                                      # partial rendering into an SRAM buffer (always in portrait)
 CCW = False                                          # portrait rotation direction (False = 90 degrees clockwise)
@@ -136,9 +139,9 @@ def _flush_rot(disp, area, color_p):
         # Single buffer: copy each rendered piece into the buffer being scanned out and carry on at once. No swap, no
         # vsync wait, no second copy; the cost is that a big redraw is briefly visible as it sweeps down the panel.
         if portrait:
-            rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, 0, CCW)
+            rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, _tgt, CCW)
         else:
-            rgb_lcd.blit(_pbuf, area.x1, area.y1, area.x2, area.y2, 0)
+            rgb_lcd.blit(_pbuf, area.x1, area.y1, area.x2, area.y2, _tgt)
         if disp.flush_is_last():
             _frame += 1
         disp.flush_ready()
@@ -164,6 +167,40 @@ def _flush_rot(disp, area, color_p):
         _pu = None
         _frame += 1
     disp.flush_ready()
+
+
+SLIDE_MS = 240
+
+
+def can_slide():
+    return single and not portrait
+
+
+def start_slide(direction):
+    """Render the next frame into the hidden buffer; _run_slide() then pushes it across the screen."""
+    global _tgt, slide_req
+    if slide_req is None and can_slide():
+        _tgt = 1
+        slide_req = (direction, _frame)
+
+
+def _run_slide():
+    """Push buffer 1 (the new page, fully rendered) over buffer 0 with an ease-out curve."""
+    global _tgt, slide_req
+    direction = slide_req[0]
+    done, t0 = 0, time.ticks_ms()
+    del slide_ms[:]
+    while done < W:
+        f = min(1.0, time.ticks_diff(time.ticks_ms(), t0) / SLIDE_MS)
+        target = W if f >= 1.0 else int(W * (1 - (1 - f) * (1 - f) * (1 - f)))
+        step = target - done
+        if step > 0:
+            slide_ms.append(rgb_lcd.slide(done, step, direction))
+            done = target
+        else:
+            time.sleep_ms(2)
+    _tgt = 0
+    slide_req = None
 
 
 def front():
@@ -313,7 +350,7 @@ def _loop_error_log(msg):
 
 
 async def _loop():
-    global _up_ms
+    global _up_ms, _tgt, slide_req
     _start_watchdog()
     last = time.ticks_ms()
     win_start = last
@@ -339,6 +376,13 @@ async def _loop():
             lv.task_handler()
         except Exception as e:           # callbacks are protected in C; this is the last line of defence
             _loop_error(e)
+        if slide_req and _frame > slide_req[1]:       # the incoming page has been rendered off-screen
+            try:
+                _run_slide()
+            except Exception as e:
+                _tgt = 0
+                slide_req = None
+                _loop_error(e)
         d = time.ticks_diff(time.ticks_ms(), t0)
         last_handler = d
         busy += d
