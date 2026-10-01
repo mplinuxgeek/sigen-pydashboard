@@ -1,0 +1,67 @@
+name: Release build
+
+# Runs when a GitHub Release is published (Releases > Draft a new release > choose/create tag vX.Y.Z > Publish), builds the
+# firmware at that tag and attaches the files below to the release. Run it by hand (Actions > Release build > Run workflow)
+# to get the same files as a downloadable build artifact without publishing anything.
+#
+#   sigen-pydashboard-factory.bin   everything for a blank or bricked board, flash at offset 0x0 (8 MB): bootloader, partition
+#                                   table, firmware AND the Python app. Erases settings, WiFi and history.
+#   sigen-pydashboard-ota.bin       firmware only, for POST /api/ota on a board that is already running this project.
+#                                   NEVER flash this one at 0x0: it is an app image, not a full flash image.
+#   sigen-pydashboard-app.tar       the Python app only, for POST /api/ota/py (./scripts_ota.sh).
+#   SHA256SUMS
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.5.4
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches py/core/version.py
+        if: github.event_name == 'release'
+        run: |
+          want="${{ github.event.release.tag_name }}"
+          have="v$(sed -n 's/^VERSION = "\(.*\)"/\1/p' py/core/version.py)"
+          echo "tag $want, py/core/version.py says $have"
+          [ "$want" = "$have" ] || { echo "::error::Release tag $want does not match version $have in py/core/version.py"; exit 1; }
+
+      - name: Build firmware (fetches the pinned MicroPython + LVGL sources, applies patches/)
+        run: |
+          git config --global --add safe.directory '*'
+          export IDF_PATH=/opt/esp/idf
+          ./build.sh -j"$(nproc)"
+
+      - name: Assemble release files
+        run: |
+          . /opt/esp/idf/export.sh
+          pip install --quiet littlefs-python
+          B=micropython/ports/esp32/build-ESP32_GENERIC_S3
+          mkdir -p dist
+          python3 scripts/make_fs_image.py dist/fs.bin
+          (cd "$B" && python -m esptool --chip esp32s3 merge_bin --fill-flash-size 8MB -o "$GITHUB_WORKSPACE/dist/sigen-pydashboard-factory.bin" @flash_args 0x5F0000 "$GITHUB_WORKSPACE/dist/fs.bin")
+          cp "$B/micropython.bin" dist/sigen-pydashboard-ota.bin
+          tar cf dist/sigen-pydashboard-app.tar --exclude=__pycache__ --exclude=tests --exclude=deploy.sh -C py board.py main.py boot.py core ui www
+          rm dist/fs.bin
+          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/*
+
+      - name: Keep as a build artifact (manual runs)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: dist/*

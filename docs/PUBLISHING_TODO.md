@@ -46,6 +46,6 @@ A fresh clone must be able to produce the firmware.
 - [x] `CONTRIBUTING.md` (short) and `CHANGELOG.md`.
 
 ## Phase 7 - Release
-- [?] Publish prebuilt firmware `.bin` as GitHub release assets? (needs a flashing guide; saves cloning ~500 MB)
-- [?] Repository name, description, topics.
+- [x] Prebuilt firmware as release assets: `.github/workflows/release.yml` (trigger: release published) builds factory image (firmware + Python app, verified: a littlefs image from `scripts/make_fs_image.py` boots on the real board), OTA firmware, app tar and checksums. See `docs/releasing.md`.
+- [x] Repository: github.com/mplinuxgeek/sigen-pydashboard (README links updated). Suggested description: "Sigenergy SigenStor battery/solar dashboard for the Waveshare ESP32-S3 7-inch touch display, in MicroPython + LVGL". Topics: micropython, lvgl, esp32-s3, sigenergy, solar, modbus, home-energy.
 - [ ] Final pass: fresh clone, follow the README literally, on a real board.

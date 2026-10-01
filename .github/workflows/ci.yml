@@ -8,13 +8,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pyflakes
+      - run: pip install pyflakes littlefs-python
       - name: Unit tests (host side, no hardware)
         working-directory: py
         run: python -m unittest discover tests
       - name: pyflakes (Viper ptr8/ptr16/ptr32 annotations are expected)
         working-directory: py
         run: python -m pyflakes . | grep -v "undefined name 'ptr\(8\|16\|32\)'" | tee /tmp/flakes; test ! -s /tmp/flakes
+      - name: Filesystem image builds (used by the release workflow)
+        run: python scripts/make_fs_image.py /tmp/fs.bin
       - name: Shell scripts parse
         run: for f in *.sh scripts/*.sh py/deploy.sh; do bash -n "$f"; done
       - name: Patches apply to the pinned upstream sources

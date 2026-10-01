@@ -28,10 +28,20 @@ screen-off, PWM backlight curve · HTTP API + web page + Chart.js history · CSV
 * A Sigenergy inverter reachable on your LAN with Modbus TCP enabled (default port 502).
 
 ## Quick start
+### Option A: flash a release (no toolchain)
+Download `sigen-pydashboard-factory.bin` from the [latest release](https://github.com/mplinuxgeek/sigen-pydashboard/releases/latest)
+and write it at offset 0 (board's USB-serial port; `pip install esptool`):
+```
+python3 -m esptool --chip esp32s3 -b 921600 write_flash 0x0 sigen-pydashboard-factory.bin     # or ./flash.sh the-file
+```
+It contains the firmware and the Python app, so the panel boots straight to first-run setup. It **erases** settings, WiFi and
+history. Never flash `sigen-pydashboard-ota.bin` at 0 (that is the app-only image used by OTA). Checksums are in `SHA256SUMS`.
+
+### Option B: build it yourself
 You need: git, Python 3, [ESP-IDF 5.5.4](https://docs.espressif.com/projects/esp-idf/) installed for `esp32s3`
 (`install.sh esp32s3`), and about 1.5 GB of disk for the sources and build.
 ```
-git clone https://github.com/mplinuxgeek/sigen-dashboard-py && cd sigen-dashboard-py
+git clone https://github.com/mplinuxgeek/sigen-pydashboard && cd sigen-pydashboard
 ./setup.sh              # fetch the pinned MicroPython + LVGL bindings and apply patches/ (see versions.env)
 ./build.sh -j8          # firmware -> micropython/ports/esp32/build-ESP32_GENERIC_S3/micropython.bin
 ./flash.sh              # first flash over USB (bootloader, partitions, firmware); PORT=/dev/ttyACM0 to choose the port
@@ -47,7 +57,7 @@ Settings > OTA Key.
 ```
 export PANEL_HOST=192.168.1.50 PANEL_TOKEN=<Settings > OTA Key>
 ./scripts_ota.sh                                         # Python app, ~45 s, rolls back if it does not boot
-curl -X POST -H "X-OTA-Token: $PANEL_TOKEN" --data-binary @micropython.bin http://$PANEL_HOST/api/ota   # firmware, ~1 min
+curl -X POST -H "X-OTA-Token: $PANEL_TOKEN" --data-binary @sigen-pydashboard-ota.bin http://$PANEL_HOST/api/ota   # firmware, ~1 min
 ./shot.sh shot.png                                       # screenshot over HTTP
 ```
 The route list is on the panel itself: open `http://<panel>/api` ([docs/http-api.md](docs/http-api.md)).
