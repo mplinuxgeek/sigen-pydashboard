@@ -11,6 +11,7 @@ from machine import I2C, Pin
 PHYS_W, PHYS_H = rgb_lcd.WIDTH, rgb_lcd.HEIGHT      # the panel itself is 800x480 landscape
 W, H = PHYS_W, PHYS_H                                # logical size: swapped by init(portrait=True)
 portrait = False
+single = False                                       # partial rendering straight into the live frame buffer (no swap, no wait)
 partial = False                                      # partial rendering into an SRAM buffer (always in portrait)
 CCW = False                                          # portrait rotation direction (False = 90 degrees clockwise)
 
@@ -131,6 +132,17 @@ def _flush_rot(disp, area, color_p):
     the slow PSRAM frame buffer); each piece is copied into the back frame buffer, and when the frame is complete it is
     presented and the touched rectangle copied into the other buffer so both stay identical for the next frame."""
     global _frame, _shown, _pu
+    if single:
+        # Single buffer: copy each rendered piece into the buffer being scanned out and carry on at once. No swap, no
+        # vsync wait, no second copy; the cost is that a big redraw is briefly visible as it sweeps down the panel.
+        if portrait:
+            rgb_lcd.blit_rot(_pbuf, area.x1, area.y1, area.x2, area.y2, 0, CCW)
+        else:
+            rgb_lcd.blit(_pbuf, area.x1, area.y1, area.x2, area.y2, 0)
+        if disp.flush_is_last():
+            _frame += 1
+        disp.flush_ready()
+        return
     back = 1 - _shown
     t0 = time.ticks_ms()
     if portrait:
@@ -216,10 +228,10 @@ def frames():
     return _frame
 
 
-def init(portrait_mode=False, partial_render=True):
+def init(portrait_mode=False, partial_render=True, rows=None, single_buffer=False):
     """Bring up the panel. portrait_mode=True renders a 480x800 logical screen rotated into the 800x480 panel.
     partial_render (landscape): draw into a small internal-SRAM buffer instead of straight into the PSRAM frame buffers."""
-    global _disp, _indev, _touch, _fbs, W, H, portrait, partial, _pbuf
+    global _disp, _indev, _touch, _fbs, W, H, portrait, partial, single, _pbuf
     if _disp:
         return _disp
     _ch422g_reset()
@@ -232,9 +244,10 @@ def init(portrait_mode=False, partial_render=True):
     _disp = lv.display_create(W, H)
     _disp.set_color_format(lv.COLOR_FORMAT.RGB565)
     partial = portrait or bool(partial_render)
+    single = partial and bool(single_buffer)
     if partial:
         # partial rendering: one internal-SRAM draw buffer (~60 KB), copied (and rotated in portrait) by _flush_rot
-        _pbuf = rgb_lcd.buffer(W * (64 if portrait else 40) * 2)
+        _pbuf = rgb_lcd.buffer(W * (rows or (64 if portrait else 40)) * 2)
         _disp.set_buffers(_pbuf, None, len(_pbuf), lv.DISPLAY_RENDER_MODE.PARTIAL)
         _disp.set_flush_cb(_flush_rot)
     else:

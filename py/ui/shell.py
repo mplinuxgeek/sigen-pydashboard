@@ -1,6 +1,8 @@
 """Page navigator: six full-screen pages (Dashboard, Graph, Monthly, System Info / Settings / WiFi) flipped instantly
 by a horizontal swipe (no drag-follow), a dot strip that fades after 3 s, and an idle timer that returns to the
 Dashboard after 30 s without a touch. Pages are built once; only the active one is visible."""
+import time
+
 import lvgl as lv
 
 from . import common, kit
@@ -88,17 +90,24 @@ class Shell:
         self._show(idx, prev)
 
     def _show(self, idx, prev=None):
+        t0 = time.ticks_ms()
         for i, p in enumerate(self.pages):
             if p is None:
                 continue
             if i == prev and hasattr(p, "on_hide"):
                 p.on_hide()
+        t1 = time.ticks_ms()
         p = self.pages[idx]
         if p is not None and hasattr(p, "on_show"):
             try:
                 p.on_show()
             except Exception as e:
                 self.app.log.error("ui: page %s on_show: %r" % (self.names[idx], e))
+        t2 = time.ticks_ms()
+        if time.ticks_diff(t2, t0) > 60:               # slow page switch: say where the time went (python side only)
+            self.app.log.info("ui: %s: hide %s %d ms, show %s %d ms" % (
+                "switch", self.names[prev] if prev is not None else "-", time.ticks_diff(t1, t0), self.names[idx],
+                time.ticks_diff(t2, t1)))
         self._paint_dots(lv.OPA.COVER)
         self.dot_timer.reset()
 

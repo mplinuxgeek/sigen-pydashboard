@@ -25,3 +25,8 @@ CONFIG_LWIP_MAX_SOCKETS=16
 # Watchdogs: flash writes can starve the idle task while the panel scans out of PSRAM
 CONFIG_ESP_TASK_WDT_TIMEOUT_S=45
 CONFIG_ESP_INT_WDT_TIMEOUT_MS=10000
+
+# ---- cache tuning: code runs from PSRAM (SPIRAM_FETCH_INSTRUCTIONS), so the 16 KB default instruction cache thrashes
+# under LVGL + the interpreter. 32 KB costs 16 KB of internal heap; 64 B data-cache lines suit the bulk PSRAM copies.
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y

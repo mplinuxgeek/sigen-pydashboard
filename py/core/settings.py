@@ -21,7 +21,10 @@ def get(key, default=None):
 
 
 def set(key, value):
+    """Store a value; a write that changes nothing costs nothing (each real write rewrites the whole file in FAT)."""
     d = _load()
+    if key in d and d[key] == value:
+        return
     d[key] = value
     _save()
 

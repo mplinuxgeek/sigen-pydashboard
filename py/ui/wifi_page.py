@@ -69,7 +69,14 @@ class WifiPage:
 
     # ---- data -----------------------------------------------------------------------------------------
     def on_show(self):
-        self.rescan()
+        """Scan on the first visit or when the last scan is over 5 minutes old; the Scan button always rescans.
+        (A radio scan briefly stalls the interpreter and WiFi traffic, so it must not run on every swipe.)"""
+        import time
+        stale = time.ticks_diff(time.ticks_ms(), getattr(self, "scanned_ms", 0)) > 300000
+        if not self.results or stale:
+            self.rescan()
+        else:
+            self.populate()
 
     def rescan(self):
         if self.scanning:
@@ -87,6 +94,8 @@ class WifiPage:
             self.results, self.scan_msg = [], "Scan failed - see the log"
             self.app.log.warn("wifi ui: scan failed: %r" % (e,))
         self.scanning = False
+        import time
+        self.scanned_ms = time.ticks_ms()
         self.populate()
 
     def populate(self):

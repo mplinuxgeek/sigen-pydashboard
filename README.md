@@ -73,3 +73,18 @@ Verified on hardware: WiFi join + on-device setup, live Modbus data, dashboard/g
 orientations (rotation direction confirmed), history + monthly import of the old device's data, HTTP API and web page, firmware
 OTA and Python OTA. Not yet exercised on hardware: the phone-side captive portal, PWM backlight (needs the GPIO jumper), and a
 long soak test.
+
+## Rendering performance
+
+Full-page redraw time per screen (`./bench.sh`, ms; `POST /api/bench/render` forces and times redraws):
+
+| Change | Dashboard | Graph | Settings | WiFi |
+|---|---|---|---|---|
+| LVGL straight into PSRAM frame buffers | 378 | 435-640 | 307 | 222 |
+| + 40-row SRAM draw buffer, copied out | ~370 | ~365 | ~300 | ~210 |
+| + 32 KB instruction cache, 64 B data-cache lines | 242 | 365 | 212 | 150 |
+| + single buffer (`ui.single`) | 143 | 238 | 107 | 42 |
+
+Knobs (`POST /api/tuning`, applied on restart): `ui.partial` (default true), `ui.rows` (draw-buffer rows, default 40;
+more rows = slightly faster but uses internal SRAM), `ui.single` (draw straight into the live buffer: no vsync waits,
+but a large redraw can show a brief tear line as it sweeps down).

@@ -59,6 +59,8 @@ ROUTES = (
     ("POST", "/api/backlight/curve", True, "custom dimming curve, up to 8 points",
      """curl -X POST -H "X-OTA-Token: $T" -d '{"points":[["07:00",80],["21:00",25]]}' http://HOST/api/backlight/curve"""),
     ("GET", "/api/metrics", False, "live battery/PV/grid/load readings, same values the dashboard shows", None),
+    ("POST", "/api/tuning", True, "rendering knobs ui.partial / ui.rows / ui.single (null = default), applied on restart",
+     """curl -X POST -H "X-OTA-Token: $T" -d '{"ui.single":true}' http://HOST/api/tuning"""),
     ("GET", "/api/settings", False, "Modbus/sizing/blanking/night-off/timezone/orientation snapshot (no OTA key)", None),
     ("POST", "/api/settings", True,
      "update any subset of ip+port, inverter_kw, solar_kw, ota_pin, blank_enabled, blank_timeout_s, night_enabled, "
@@ -422,6 +424,19 @@ def register(app, server):
             return http.err(400, "dir must be 'left', 'right' or 'none' (e.g. /api/swipe?dir=left)")
         return view_info(sh.active != before)
 
+    def bench_render(req):
+        """Diagnostics: force a full redraw of the current page and time it (ms), a few times."""
+        import lvgl as lv
+        out = []
+        for _ in range(3):
+            lv.screen_active().invalidate()
+            t0 = time.ticks_ms()
+            lv.refr_now(None)
+            out.append(time.ticks_diff(time.ticks_ms(), t0))
+        return {"page": svc["shell"].names[svc["shell"].active], "render_ms": out}
+
+    server.route("POST", "/api/bench/render", bench_render, auth=True)
+
     shot_busy = []
 
     async def screenshot(req):
@@ -489,6 +504,21 @@ def register(app, server):
     R("GET", "/api/metrics", metrics)
     R("GET", "/api/settings", settings_get)
     R("POST", "/api/settings", settings_post, auth=True)
+
+    def tuning_post(req):
+        """Rendering tuning knobs (ui.partial, ui.rows, ui.single); null removes one. Takes effect after a restart."""
+        d, err = body_json(req)
+        if err:
+            return err
+        for k, v in d.items():
+            if k not in ("ui.partial", "ui.rows", "ui.single"):
+                return http.err(400, "unknown key " + k)
+            if v is None:
+                settings.delete(k)
+            else:
+                settings.set(k, v)
+        return {"ok": True}
+    R("POST", "/api/tuning", tuning_post, auth=True)
     R("POST", "/api/orientation", orientation, auth=True)
     R("POST", "/api/reset", reset, auth=True)
     R("POST", "/api/reset-wifi-modbus", reset_wifi_modbus, auth=True)

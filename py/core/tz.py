@@ -162,14 +162,20 @@ def _load():
 
 
 def free():
-    global _data
-    _data = None
+    global _data, _countries
+    _data = _countries = None
+
+
+_countries = None
 
 
 def countries():
-    """[(code, name)] sorted by name"""
-    d = _load()
-    return sorted(((k, v["name"]) for k, v in d.items()), key=lambda t: t[1])
+    """[(code, name)] sorted by name (cached)"""
+    global _countries
+    if _countries is None:
+        d = _load()
+        _countries = sorted(((k, v["name"]) for k, v in d.items()), key=lambda t: t[1])
+    return _countries
 
 
 def zones(code):

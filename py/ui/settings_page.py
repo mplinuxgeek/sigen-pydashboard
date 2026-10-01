@@ -23,6 +23,7 @@ class SettingsPage:
         self.loading = False
         self.country_codes = []
         self.zone_list = []
+        self.country_opts = None
         s = app.settings
         parent.set_style_bg_color(C.c(C.BG), 0)
         parent.set_style_bg_opa(lv.OPA.COVER, 0)
@@ -247,7 +248,9 @@ class SettingsPage:
         code, zone, _px, _lb = tz.selection()
         codes = tz.countries()
         self.country_codes = [c for c, _n in codes]
-        self.country.set_options("\n".join(n for _c, n in codes))
+        if self.country_opts is None:                       # 247 entries: build the option string once
+            self.country_opts = "\n".join(n for _c, n in codes)
+            self.country.set_options(self.country_opts)
         if code in self.country_codes:
             self.country.set_selected(self.country_codes.index(code))
         self.fill_zones(code, zone)

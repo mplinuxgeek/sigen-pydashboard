@@ -14,7 +14,7 @@ from core.state import State
 from core.dns import CaptiveDns
 
 from core import settings as _settings
-board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)))
+board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)), _settings.get("ui.rows"), bool(_settings.get("ui.single", False)))
 errors.install()
 log.restore()
 log.info("boot: MicroPython on ESP32-S3, PSRAM heap free %d KB" % (gc.mem_free() // 1024))
@@ -152,6 +152,14 @@ async def flow():
             app.settings.set("modbus.skipped", True)
 
 
+async def preload():
+    """Parse the time-zone table once, shortly after boot, so the first visit to Settings does not pay for it."""
+    await asyncio.sleep(25)
+    from core import tz
+    tz.countries()
+    gc.collect()
+
+
 async def boot():
     app.spawn(wifi.run)
     app.spawn(server.start)
@@ -159,6 +167,7 @@ async def boot():
     app.spawn(ntp.run)
     app.spawn(backlight.run)
     app.spawn(blank.run)
+    app.spawn(preload, restart=False)
     app.spawn(ota.confirm_task(app), restart=False)
     app.spawn(history.run)
     app.spawn(flow, restart=False)
