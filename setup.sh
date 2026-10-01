@@ -4,6 +4,8 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 . "$HERE/versions.env"
+. "$HERE/scripts/common.sh"
+load_idf
 
 if [ -d "$HERE/micropython/ports/esp32" ]; then
     echo "micropython/ already present, leaving it alone"
@@ -13,9 +15,9 @@ else
     got=$(git -C "$HERE/micropython" rev-parse HEAD)
     case $got in "$MICROPYTHON_COMMIT"*) ;; *) echo "unexpected MicroPython commit $got (wanted $MICROPYTHON_COMMIT)" >&2; exit 1;; esac
     git -C "$HERE/micropython" apply "$HERE/patches/micropython-esp32.patch"
-    echo "== MicroPython submodules for the ESP32 port"
-    make -C "$HERE/micropython/ports/esp32" BOARD=ESP32_GENERIC_S3 submodules
 fi
+echo "== MicroPython submodules for the ESP32 port"
+make -C "$HERE/micropython/ports/esp32" BOARD=ESP32_GENERIC_S3 submodules
 
 if [ -d "$HERE/lv_binding_micropython/lvgl/src" ]; then
     echo "lv_binding_micropython/ already present, leaving it alone"
