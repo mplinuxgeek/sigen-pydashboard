@@ -19,11 +19,11 @@ A fresh clone must be able to produce the firmware.
 - [ ] Flash helper (`flash.sh`) so the README does not hard-code `ttyACM1`.
 
 ## Phase 3 - Licences and attribution
-- [ ] `LICENSE` (MIT) for this project's own code.
-- [ ] `THIRD_PARTY.md`: MicroPython, lv_binding_micropython, LVGL, Chart.js, Material Design Icons, tz data, Montserrat.
-- [ ] README disclaimer: unofficial, not affiliated with Sigenergy; trademarks belong to their owners.
-- [?] Confirm the licence of the web page / API inherited from the original `sigen-dashboard` project.
-- [?] Decide whether to rewrite commit author details before publishing.
+- [x] `LICENSE` (MIT) for this project's own code.
+- [x] `THIRD_PARTY.md`: MicroPython, lv_binding_micropython, LVGL, Chart.js, Material Design Icons, tz data, Montserrat.
+- [x] README disclaimer (in THIRD_PARTY.md; README gets it in phase 4): unofficial, not affiliated with Sigenergy; trademarks belong to their owners.
+- [x] Licence of the inherited web page / API: the original `sigen-dashboard` is MIT, same author (Martin Pascoe), so no issue.
+- [x] Author identity: the original sigen-dashboard already publishes "Martin Pascoe <bircoe@gmail.com>"; added `.mailmap` so earlier "martin" commits map to it (history not rewritten; GitHub ignores .mailmap, so run `git rebase --root --exec` or filter-repo before publishing if the display name matters).
 
 ## Phase 4 - README and docs
 - [ ] Rewrite README: what it is, hardware list, screenshots, quick start (setup, build, flash, first boot), OTA, layout.
