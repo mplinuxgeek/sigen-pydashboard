@@ -40,7 +40,7 @@ A fresh clone must be able to produce the firmware.
 - [x] Settings key reference (`docs/settings-keys.md`).
 
 ## Phase 6 - Tests and CI
-- [x] More host tests: tz, modbus register decoding, history ring, monthly backfill, settings.
+- [x] More host tests: tz table (every zone evaluates), modbus decoding, settings store, bisect. Not covered: history ring (Viper code, device only), monthly backfill (needs the app object), UI.
 - [x] `.github/workflows/ci.yml`: unit tests + `pyflakes` on every push.
 - [x] Fuller `.gitignore`.
 - [x] `CONTRIBUTING.md` (short) and `CHANGELOG.md`.
