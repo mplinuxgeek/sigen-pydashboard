@@ -1,0 +1,27 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyflakes
+      - name: Unit tests (host side, no hardware)
+        working-directory: py
+        run: python -m unittest discover tests
+      - name: pyflakes (Viper ptr8/ptr16/ptr32 annotations are expected)
+        working-directory: py
+        run: python -m pyflakes . | grep -v "undefined name 'ptr\(8\|16\|32\)'" | tee /tmp/flakes; test ! -s /tmp/flakes
+      - name: Shell scripts parse
+        run: for f in *.sh scripts/*.sh py/deploy.sh; do bash -n "$f"; done
+      - name: Patches apply to the pinned upstream sources
+        run: |
+          . ./versions.env
+          git clone --quiet --depth 1 --branch "$MICROPYTHON_TAG" "$MICROPYTHON_REPO" /tmp/mp
+          git -C /tmp/mp apply --check "$PWD/patches/micropython-esp32.patch"
+          git clone --quiet --filter=blob:none "$LVB_REPO" /tmp/lvb
+          git -C /tmp/lvb checkout --quiet "$LVB_COMMIT"
+          git -C /tmp/lvb apply --check "$PWD/patches/lv_binding-gen_mpy.patch"

@@ -37,13 +37,13 @@ A fresh clone must be able to produce the firmware.
 - [x] Remove unused imports and other `pyflakes` findings (only the Viper `ptr8/ptr16/ptr32` annotations remain: false positives).
 - [x] Remove the old `DEBUG` prints in `board.py`.
 - [x] Real version string (`py/core/version.py`, 0.2.0) reported by `/api/version`.
-- [ ] Settings key reference (`ui.*`) documented.
+- [x] Settings key reference (`docs/settings-keys.md`).
 
 ## Phase 6 - Tests and CI
-- [ ] More host tests: tz, modbus register decoding, history ring, monthly backfill, settings.
-- [ ] `.github/workflows/ci.yml`: unit tests + `pyflakes` on every push.
-- [ ] Fuller `.gitignore`.
-- [ ] `CONTRIBUTING.md` (short) and `CHANGELOG.md`.
+- [x] More host tests: tz, modbus register decoding, history ring, monthly backfill, settings.
+- [x] `.github/workflows/ci.yml`: unit tests + `pyflakes` on every push.
+- [x] Fuller `.gitignore`.
+- [x] `CONTRIBUTING.md` (short) and `CHANGELOG.md`.
 
 ## Phase 7 - Release
 - [?] Publish prebuilt firmware `.bin` as GitHub release assets? (needs a flashing guide; saves cloning ~500 MB)

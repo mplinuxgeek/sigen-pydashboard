@@ -1,5 +1,15 @@
-board_s3_7/sdkconfig.paths
+# upstream sources fetched by setup.sh
 micropython/
 lv_binding_micropython/
+# generated
+board_s3_7/sdkconfig.paths
 *.log
 __pycache__/
+*.pyc
+# local
+*.bin
+*.tar
+panel.png
+.DS_Store
+.vscode/
+.idea/
