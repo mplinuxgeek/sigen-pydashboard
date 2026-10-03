@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+* Info screen shows the panel's IP address and network name.
+* Web interface rework: per-day chart loading (0.3 s instead of 13 s), Updates tab (GitHub check/install, app upload), WiFi scan/join, Modbus connection test, backlight curve editor, Panel View, token lock indicator, accessibility.
+* `scripts/release.sh` cuts releases the same way every time.
 * Boot splash (logo, progress bar, status line) shown as soon as the display is up; it stays until WiFi is connected and the web server is listening.
 * Update the Python app from GitHub Releases: Info > Check Updates / Install, daily notify-only check, `/api/update*`.
 * `build.sh` retries when the LVGL binding link fails on a fresh configure.

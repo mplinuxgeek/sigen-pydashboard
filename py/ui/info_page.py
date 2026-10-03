@@ -60,7 +60,7 @@ class InfoPage:
                     l.set_width(lv.pct(100))
                     l.set_long_mode(lv.label.LONG_MODE.WRAP)
                 self.L[k] = l
-        group(left, "System", ("version", "update", "python", "uptime", "chip", "storage", "sram", "psram", "pyheap"))
+        group(left, "System", ("version", "ip", "update", "python", "uptime", "chip", "storage", "sram", "psram", "pyheap"))
         group(inv, "Inverter", ("model", "serial"), wrap=True)
         group(ntp, "NTP", ("ntp_status", "ntp_server", "ntp_last", "ntp_count", "ntp_time"))
         btns = lv.obj(parent)
@@ -103,6 +103,8 @@ class InfoPage:
         st, sf = heap(1 << 11)
         pt, pf = heap(1 << 10)
         L["version"].set_text("Version: %s" % api.VERSION)
+        w = svc["wifi"]
+        L["ip"].set_text("IP: %s (%s)" % (w.ip or "--", "setup hotspot" if w.mode == "ap" else (w.ssid or "not connected")))
         self.refresh_update(L)
         L["python"].set_text("MicroPython %s" % ".".join(str(x) for x in sys.implementation.version[:3]))
         L["uptime"].set_text("Uptime: %dh %dm" % (up // 3600, up % 3600 // 60))
