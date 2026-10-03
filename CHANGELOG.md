@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.1 (2026-10-04)
 * Info screen shows the panel's IP address and network name.
 * Web interface rework: per-day chart loading (0.3 s instead of 13 s), Updates tab (GitHub check/install, app upload), WiFi scan/join, Modbus connection test, backlight curve editor, Panel View, token lock indicator, accessibility.
 * `scripts/release.sh` cuts releases the same way every time.
