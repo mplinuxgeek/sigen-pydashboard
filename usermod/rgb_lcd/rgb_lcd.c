@@ -316,6 +316,7 @@ static const mp_rom_map_elem_t rgb_lcd_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_present), MP_ROM_PTR(&rgb_lcd_present_obj)},
     {MP_ROM_QSTR(MP_QSTR_vsync_waits), MP_ROM_PTR(&rgb_lcd_vsync_waits_obj)},
     {MP_ROM_QSTR(MP_QSTR_buffer), MP_ROM_PTR(&rgb_lcd_buffer_obj)},
+    {MP_ROM_QSTR(MP_QSTR_API), MP_ROM_INT(1)},        // firmware API level: bump when the Python app needs new C functions
     {MP_ROM_QSTR(MP_QSTR_slide), MP_ROM_PTR(&rgb_lcd_slide_obj)},
     {MP_ROM_QSTR(MP_QSTR_blit), MP_ROM_PTR(&rgb_lcd_blit_obj)},
     {MP_ROM_QSTR(MP_QSTR_blit_rot), MP_ROM_PTR(&rgb_lcd_blit_rot_obj)},

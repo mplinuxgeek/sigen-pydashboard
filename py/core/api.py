@@ -58,6 +58,13 @@ ROUTES = (
     ("POST", "/api/backlight/curve", True, "custom dimming curve, up to 8 points",
      """curl -X POST -H "X-OTA-Token: $T" -d '{"points":[["07:00",80],["21:00",25]]}' http://HOST/api/backlight/curve"""),
     ("GET", "/api/metrics", False, "live battery/PV/grid/load readings, same values the dashboard shows", None),
+    ("GET", "/api/update", False, "update status: running version, latest GitHub release, whether one is available, progress", None),
+    ("POST", "/api/update/check", True, "ask GitHub for the latest release now",
+     """curl -X POST -H "X-OTA-Token: $T" http://HOST/api/update/check"""),
+    ("POST", "/api/update/install", True, "download, verify and install the release found by the last check, then reboot",
+     """curl -X POST -H "X-OTA-Token: $T" http://HOST/api/update/install"""),
+    ("POST", "/api/update/config", True, "set the update source {repo: owner/name} and/or the daily check {auto: true|false}",
+     """curl -X POST -H "X-OTA-Token: $T" -d '{"auto":false}' http://HOST/api/update/config"""),
     ("POST", "/api/tuning", True, "rendering knobs ui.partial / ui.rows / ui.single (null = default), applied on restart",
      """curl -X POST -H "X-OTA-Token: $T" -d '{"ui.single":true}' http://HOST/api/tuning"""),
     ("GET", "/api/settings", False, "Modbus/sizing/blanking/night-off/timezone/orientation snapshot (no OTA key)", None),
@@ -510,7 +517,7 @@ def register(app, server):
         if err:
             return err
         for k, v in d.items():
-            if k not in ("ui.partial", "ui.rows", "ui.single", "ui.animate"):
+            if k not in ("ui.partial", "ui.rows", "ui.single", "ui.animate", "update.api"):
                 return http.err(400, "unknown key " + k)
             if v is None:
                 settings.delete(k)

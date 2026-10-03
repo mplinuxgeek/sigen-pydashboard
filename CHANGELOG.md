@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+* Update the Python app from GitHub Releases: Info > Check Updates / Install, daily notify-only check, `/api/update*`.
+* `build.sh` retries when the LVGL binding link fails on a fresh configure.
+
 ## 0.2.0
 First public version of the MicroPython port.
 * Full dashboard, graph, monthly, info, settings and WiFi screens; landscape and portrait.

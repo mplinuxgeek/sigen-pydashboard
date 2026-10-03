@@ -15,6 +15,9 @@ its own licence.
 | [Montserrat](https://github.com/JulietaUla/Montserrat) (digit subset in `fonts/lv_font_load_split_16.c`) | text | SIL OFL 1.1 |
 | IANA time zone database (`py/www/tzdata.json`, POSIX TZ strings per zone) | country / region picker | public domain |
 
+`py/core/certs.py` holds public root CA certificates (USERTrust, ISRG, DigiCert) copied from the system trust store so the panel
+can verify GitHub's TLS certificates.
+
 The web page and HTTP API follow the earlier C firmware, [sigen-dashboard](https://github.com/mplinuxgeek/sigen-dashboard)
 (MIT, same author).
 

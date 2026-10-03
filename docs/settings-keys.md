@@ -17,6 +17,9 @@ page or the HTTP API; the `ui.*` knobs only via `POST /api/tuning` (applied on r
 | `ota.token` | generated | Admin token for write endpoints (`X-OTA-Token`) |
 | `system.watchdog_s` | 300 | Restart if the UI loop stalls this long (0 = off). Disabled while a `/dev_mode` file exists |
 | `last_reboot` | | Reason recorded before the last deliberate reboot |
+| `update.repo` | mplinuxgeek/sigen-pydashboard | GitHub repository whose releases the panel updates from |
+| `update.auto` | true | Daily check for a newer release (notify only; never installs by itself) |
+| `update.api` | https://api.github.com | API base URL. An `http://` value skips TLS (mirrors and tests); set via `POST /api/tuning` |
 | `ui.partial` | true | Draw into an internal-SRAM strip buffer instead of directly into PSRAM |
 | `ui.rows` | 40 (portrait 64) | Rows in that strip buffer (more = a little faster, uses more SRAM) |
 | `ui.single` | true | Single frame buffer, no vsync waits (landscape only). false = tear-free double buffer |

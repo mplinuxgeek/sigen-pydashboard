@@ -54,6 +54,15 @@ network on the touchscreen. Then enter the inverter's IP in Settings. The admin 
 Settings > OTA Key.
 
 ## Updating without a cable
+**From the panel itself:** Info > *Check Updates*. It asks GitHub for the latest release of this project; if it is newer than
+the running version the button becomes *Install x.y.z*. The panel downloads the release's `sigen-pydashboard-app.tar` over
+HTTPS (certificate chain checked against the roots in `py/core/certs.py`), verifies its SHA-256 against the digest GitHub
+publishes, installs it with an automatic rollback if the new version does not start, and restarts. Settings and history are
+kept. A check also runs once a day and only records that an update exists (nothing installs by itself); turn that off with
+`POST /api/update/config {"auto": false}`. Forks can point it at their own releases with `{"repo": "owner/name"}`.
+Firmware updates are separate (below), and an app release that needs a newer firmware refuses to install until you update it.
+
+**From your computer:**
 ```
 export PANEL_HOST=192.168.1.50 PANEL_TOKEN=<Settings > OTA Key>
 ./scripts/ota.sh                                         # Python app, ~45 s, rolls back if it does not boot

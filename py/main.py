@@ -3,7 +3,7 @@ import asyncio
 import gc
 
 import board
-from core import api, api_data, errors, ota, log, http, modbus, portal, wifi as wifi_mod
+from core import api, api_data, errors, ota, log, http, modbus, portal, updater, wifi as wifi_mod
 from core.ntp import Ntp
 from core.history import History
 from core.monthly import Monthly
@@ -39,6 +39,7 @@ portal_.install()
 api.register(app, server)
 api_data.register(app, server)
 ota.register(app, server)
+updater.register(app, server)
 
 from ui.shell import Shell
 from ui.dashboard import Dashboard
@@ -170,6 +171,7 @@ async def boot():
     app.spawn(preload, restart=False)
     app.spawn(ota.confirm_task(app), restart=False)
     app.spawn(history.run)
+    app.spawn(lambda: updater.run(app))
     app.spawn(flow, restart=False)
     await app.start()
 

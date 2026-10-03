@@ -190,83 +190,79 @@ def confirm_task(app):
 
 
 # ---- Python application update ------------------------------------------------------------------------------
-async def upload_python(req, app):
-    stage = "/ota_new"
-    _rm_tree(stage)
-    _mkdirs(stage)
-    app.services["poller"].pause(True)
+STAGE = "/ota_new"
+
+
+async def stage_tar(read):
+    """Unpack a tar of the py/ tree into STAGE. read(n) is an async function returning up to n bytes (b"" at the end).
+    Returns the number of files; raises ValueError for a bad archive. The caller cleans STAGE up on errors."""
+    _rm_tree(STAGE)
+    _mkdirs(STAGE)
     buf = b""
-    got = 0
     files = 0
-    try:
-        async def need(n):
-            nonlocal buf, got
-            while len(buf) < n:
-                chunk = await req.read(2048)
-                if not chunk:
-                    raise ValueError("archive truncated")
-                buf += chunk
-                got += len(chunk)
-        while True:
-            await need(512)
-            hdr, buf = buf[:512], buf[512:]
-            if hdr == b"\x00" * 512:
-                break
-            name = hdr[0:100].split(b"\x00")[0].decode()
-            prefix = hdr[345:500].split(b"\x00")[0].decode()
-            if prefix:
-                name = prefix + "/" + name
-            name = name.lstrip("./")
-            size = int((hdr[124:136].split(b"\x00")[0].strip() or b"0"), 8)
-            typ = hdr[156:157]
-            if ".." in name.split("/") or name.startswith("/"):
-                raise ValueError("unsafe path in archive: %s" % name)
-            if typ == b"5":
-                if name:
-                    _mkdirs(stage + "/" + name.rstrip("/"))
-                continue
-            if typ not in (b"0", b"\x00"):
-                await need(size + (-size) % 512)
-                buf = buf[size + (-size) % 512:]
-                continue
-            d = name.rpartition("/")[0]
-            if d:
-                _mkdirs(stage + "/" + d)
-            left = size
-            with open(stage + "/" + name, "wb") as f:
-                while left > 0:
-                    await need(min(left, 512))
-                    n = min(left, len(buf))
-                    f.write(buf[:n])
-                    buf = buf[n:]
-                    left -= n
-            pad = (-size) % 512
-            await need(pad)
-            buf = buf[pad:]
-            files += 1
-            if files % 8 == 0:
-                await asyncio.sleep_ms(0)
-        # drain whatever trailing padding the client still sends
-        while got < req.length:
-            if not await req.read(2048):
-                break
-        if not (_exists(stage + "/main.py") and _exists(stage + "/board.py")):
-            raise ValueError("archive must contain main.py and board.py at its top level")
-    except Exception as e:
-        _rm_tree(stage)
-        app.services["poller"].pause(False)
-        app.log.error("ota: python update rejected: %r" % (e,))
-        return http.err(400, str(e))
-    # apply: back up the running tree, then replace it entry by entry
+
+    async def need(n):
+        nonlocal buf
+        while len(buf) < n:
+            chunk = await read(2048)
+            if not chunk:
+                raise ValueError("archive truncated")
+            buf += chunk
+    while True:
+        await need(512)
+        hdr, buf = buf[:512], buf[512:]
+        if hdr == b"\x00" * 512:
+            break
+        name = hdr[0:100].split(b"\x00")[0].decode()
+        prefix = hdr[345:500].split(b"\x00")[0].decode()
+        if prefix:
+            name = prefix + "/" + name
+        name = name.lstrip("./")
+        size = int((hdr[124:136].split(b"\x00")[0].strip() or b"0"), 8)
+        typ = hdr[156:157]
+        if ".." in name.split("/") or name.startswith("/"):
+            raise ValueError("unsafe path in archive: %s" % name)
+        if typ == b"5":
+            if name:
+                _mkdirs(STAGE + "/" + name.rstrip("/"))
+            continue
+        if typ not in (b"0", b"\x00"):
+            await need(size + (-size) % 512)
+            buf = buf[size + (-size) % 512:]
+            continue
+        d = name.rpartition("/")[0]
+        if d:
+            _mkdirs(STAGE + "/" + d)
+        left = size
+        with open(STAGE + "/" + name, "wb") as f:
+            while left > 0:
+                await need(min(left, 512))
+                n = min(left, len(buf))
+                f.write(buf[:n])
+                buf = buf[n:]
+                left -= n
+        pad = (-size) % 512
+        await need(pad)
+        buf = buf[pad:]
+        files += 1
+        if files % 8 == 0:
+            await asyncio.sleep_ms(0)
+    if not (_exists(STAGE + "/main.py") and _exists(STAGE + "/board.py")):
+        raise ValueError("archive must contain main.py and board.py at its top level")
+    return files
+
+
+def apply_staged(app, files, reason="Python OTA"):
+    """Back up the running tree to /ota_bak, replace it with STAGE, arm the boot-time rollback and schedule a reboot."""
     _rm_tree("/ota_bak")
     _mkdirs("/ota_bak")
     for name in APP_ENTRIES:
         if _exists(name):
             _copy_tree(name, "/ota_bak/" + name)
-    for name in os.listdir(stage):
+    for name in os.listdir(STAGE):
         _rm_tree(name)
-        _copy_tree(stage + "/" + name, name)
-    _rm_tree(stage)
+        _copy_tree(STAGE + "/" + name, name)
+    _rm_tree(STAGE)
     with open("/ota_pending", "w") as f:
         json.dump({"n": 0}, f)
     app.log.info("ota: python update installed (%d files), rebooting" % files)
@@ -274,8 +270,30 @@ async def upload_python(req, app):
     async def later():
         await asyncio.sleep_ms(800)
         from . import system
-        system.reboot(app, "Python OTA")
+        system.reboot(app, reason)
     asyncio.create_task(later())
+
+
+async def upload_python(req, app):
+    app.services["poller"].pause(True)
+    got = 0
+
+    async def read(n):
+        nonlocal got
+        chunk = await req.read(n)
+        got += len(chunk)
+        return chunk
+    try:
+        files = await stage_tar(read)
+        while got < req.length:                       # drain whatever trailing padding the client still sends
+            if not await req.read(2048):
+                break
+    except Exception as e:
+        _rm_tree(STAGE)
+        app.services["poller"].pause(False)
+        app.log.error("ota: python update rejected: %r" % (e,))
+        return http.err(400, str(e))
+    apply_staged(app, files)
     return {"ok": True, "files": files, "rebooting": True}
 
 

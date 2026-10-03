@@ -60,7 +60,7 @@ class InfoPage:
                     l.set_width(lv.pct(100))
                     l.set_long_mode(lv.label.LONG_MODE.WRAP)
                 self.L[k] = l
-        group(left, "System", ("version", "python", "uptime", "chip", "storage", "sram", "psram", "pyheap"))
+        group(left, "System", ("version", "update", "python", "uptime", "chip", "storage", "sram", "psram", "pyheap"))
         group(inv, "Inverter", ("model", "serial"), wrap=True)
         group(ntp, "NTP", ("ntp_status", "ntp_server", "ntp_last", "ntp_count", "ntp_time"))
         btns = lv.obj(parent)
@@ -73,6 +73,8 @@ class InfoPage:
         C.button(btns, "Clear History", C.DANGER, C.ACCENT_TEXT, self.clear_history)
         C.button(btns, "Factory Reset", C.DANGER, C.ACCENT_TEXT, self.factory_reset)
         C.button(btns, "Reboot", C.ACCENT, C.ACCENT_TEXT, self.reboot)
+        self.upd_btn = C.button(btns, "Check Updates", C.CARD, C.TEXT, self.update_clicked)
+        self.upd_lbl = self.upd_btn.get_child(0)
         self.timer = None
 
     def on_show(self):
@@ -101,6 +103,7 @@ class InfoPage:
         st, sf = heap(1 << 11)
         pt, pf = heap(1 << 10)
         L["version"].set_text("Version: %s" % api.VERSION)
+        self.refresh_update(L)
         L["python"].set_text("MicroPython %s" % ".".join(str(x) for x in sys.implementation.version[:3]))
         L["uptime"].set_text("Uptime: %dh %dm" % (up // 3600, up % 3600 // 60))
         L["chip"].set_text("ESP32-S3, 2 cores @ %d MHz" % (__import__("machine").freq() // 1000000))
@@ -123,6 +126,42 @@ class InfoPage:
         L["ntp_count"].set_text("Sync count: %d" % n.sync_count)
         t = tz.local()
         L["ntp_time"].set_text("Time: %02d:%02d:%02d %s" % (t[3], t[4], t[5], tz.abbrev()) if (n.synced and t) else "Time: --")
+
+    def refresh_update(self, L):
+        from core import updater
+        u = updater.state
+        if u["status"] == "installing":
+            L["update"].set_text("Installing... %d%%" % u["progress"])
+            self.upd_lbl.set_text("Installing")
+        elif u["status"] == "checking":
+            L["update"].set_text("Checking for updates...")
+            self.upd_lbl.set_text("Checking")
+        elif u["available"]:
+            L["update"].set_text("Update %s available" % u["latest"])
+            self.upd_lbl.set_text("Install %s" % u["latest"])
+        elif u["error"]:
+            L["update"].set_text("Update: %s" % u["error"])
+            self.upd_lbl.set_text("Check Updates")
+        elif u["checked"] is not None:
+            L["update"].set_text("Up to date")
+            self.upd_lbl.set_text("Check Updates")
+        else:
+            L["update"].set_text("Updates: not checked")
+            self.upd_lbl.set_text("Check Updates")
+
+    def update_clicked(self):
+        import asyncio
+        from core import updater
+        u = updater.state
+        if u["status"] != "idle":
+            return
+        if u["available"]:
+            C.confirm("Install %s?" % u["latest"], "Downloads the new version from GitHub, checks it, installs it and restarts "
+                      "the panel. Settings and history are kept. If the new version fails to start, the old one returns "
+                      "automatically." + ("\n\n" + u["notes"][:160] if u["notes"] else ""),
+                      lambda: asyncio.create_task(updater.install(self.app)), "Install")
+        else:
+            asyncio.create_task(updater.check(self.app))
 
     def clear_history(self):
         C.confirm("Clear History?", "Deletes every recorded data point for the graphs. WiFi and Modbus settings are kept. "

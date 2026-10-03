@@ -13,6 +13,10 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | GET | `/api/ota` | — | Running build info (what `scripts/ota.sh` checks) |
 | POST | `/api/ota` | ✓ | Upload a MicroPython firmware `.bin` into the inactive OTA slot, then reboot into it (rolls back unless the new image stays up 10 s) |
 | POST | `/api/ota/py` | ✓ | Upload the Python application (a `.tar` of `py/`), applied with a backup; `boot.py` rolls back after 3 failed boots |
+| GET | `/api/update` | — | Update status: running version, latest GitHub release, `available`, download progress, last error |
+| POST | `/api/update/check` | ✓ | Ask GitHub for the latest release now |
+| POST | `/api/update/install` | ✓ | Download, verify and install the release found by the last check, then reboot |
+| POST | `/api/update/config` | ✓ | `{"repo": "owner/name"}` and/or `{"auto": true\|false}` (daily check) |
 | POST | `/api/tuning` | ✓ | Rendering knobs `ui.partial`, `ui.rows`, `ui.single`, `ui.animate` (JSON body, `null` = default); applied on restart. See `docs/architecture.md` |
 | POST | `/api/bench/render` | ✓ | Diagnostics: force and time three full-page redraws of the current page (used by `scripts/bench.sh`) |
 | POST | `/api/history/clear` | ✓ | Clear the stored history |

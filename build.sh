@@ -15,15 +15,17 @@ run() {
     make BOARD=ESP32_GENERIC_S3 BOARD_DIR="$HERE/board_s3_7" \
          USER_C_MODULES="$HERE/usermod/micropython.cmake" "$@"
 }
-# The lv binding truncates lv_mp.c on every cmake (re)configure, so if that happened
-# during the first pass, drop the empty generated file and build again.
-[ -s "$B/lv_mp.c" ] || rm -f "$B"/lv_mp.c*
-if ! run "$@"; then
-    if [ ! -s "$B/lv_mp.c" ]; then
-        rm -f "$B"/lv_mp.c* "$B/frozen_content.c"
-        run "$@"
-    else
-        exit 1
+# The lv binding truncates lv_mp.c whenever cmake reconfigures, which makes that pass fail at link time (sometimes with a
+# zero exit status). So: build, and unless the firmware really got linked (micropython.bin newer than lv_mp.c), drop the
+# generated binding and build again.
+for attempt in 1 2 3; do
+    [ -s "$B/lv_mp.c" ] || rm -f "$B"/lv_mp.c* "$B/frozen_content.c"
+    run "$@" || true
+    if [ -s "$B/lv_mp.c" ] && [ "$B/micropython.bin" -nt "$B/lv_mp.c" ]; then
+        exit 0
     fi
-fi
-[ -s "$B/lv_mp.c" ] || { rm -f "$B"/lv_mp.c* "$B/frozen_content.c"; run "$@"; }
+    echo "build: link did not complete (attempt $attempt), retrying" >&2
+    rm -f "$B"/lv_mp.c* "$B/frozen_content.c"
+done
+echo "build failed" >&2
+exit 1
