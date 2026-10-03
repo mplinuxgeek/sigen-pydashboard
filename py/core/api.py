@@ -453,6 +453,23 @@ def register(app, server):
 
     server.route("POST", "/api/bench/render", bench_render, auth=True)
 
+    async def show_splash(req):
+        """Diagnostics: show the boot splash on the panel for ?s=<seconds> (default 8), e.g. to take a screenshot of it."""
+        from ui import splash
+        try:
+            secs = max(1, min(30, int(req.query.get("s", 8))))
+        except ValueError:
+            return http.err(400, "s must be a number of seconds")
+        splash.show(VERSION, manual=False)
+        splash.step("Building screens (3/6)", 66)
+
+        async def later():
+            await asyncio.sleep(secs)
+            await splash.finish()
+        asyncio.create_task(later())
+        return {"ok": True, "seconds": secs}
+    server.route("POST", "/api/bench/splash", show_splash, auth=True)
+
     shot_busy = []
 
     async def screenshot(req):

@@ -12,7 +12,7 @@ IDLE_RETURN_MS = 30000
 
 
 class Shell:
-    def __init__(self, app, board, page_defs):
+    def __init__(self, app, board, page_defs, on_progress=None):
         """page_defs: [(name, builder(parent, shell) -> page object or None)]"""
         self.app, self.board = app, board
         self.W, self.H = board.W, board.H
@@ -26,7 +26,9 @@ class Shell:
         scr.set_style_bg_color(kit.rgb(kit.SCREEN_BG), 0)
         scr.set_style_bg_opa(lv.OPA.COVER, 0)
         scr.remove_flag(lv.obj.FLAG.SCROLLABLE)
-        for name, build in page_defs:
+        for i, (name, build) in enumerate(page_defs):
+            if on_progress:
+                on_progress(i + 1, len(page_defs), name)
             o = lv.obj(scr)
             o.remove_style_all()
             o.set_size(self.W, self.H)

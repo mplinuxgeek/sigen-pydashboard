@@ -25,6 +25,7 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | POST | `/api/update/config` | ✓ | `{"repo": "owner/name"}` and/or `{"auto": true\|false}` (daily check) |
 | POST | `/api/tuning` | ✓ | Rendering knobs `ui.partial`, `ui.rows`, `ui.single`, `ui.animate` (JSON body, `null` = default); applied on restart. See `docs/architecture.md` |
 | POST | `/api/bench/render` | ✓ | Diagnostics: force and time three full-page redraws of the current page (used by `scripts/bench.sh`) |
+| POST | `/api/bench/splash` | ✓ | Diagnostics: show the boot splash for `?s=` seconds (default 8), e.g. to screenshot it |
 | POST | `/api/history/clear` | ✓ | Clear the stored history |
 | GET | `/api/monthly` | — | Monthly totals as JSON: `history`, `current`, `current_billing` |
 | POST | `/api/factory-reset` | ✓ | Erase WiFi, Modbus, history, totals and settings, then restart |

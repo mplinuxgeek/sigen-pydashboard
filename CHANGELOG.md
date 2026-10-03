@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+* Boot splash (logo, progress bar, status line) shown as soon as the display is up; it stays until WiFi is connected and the web server is listening.
 * Update the Python app from GitHub Releases: Info > Check Updates / Install, daily notify-only check, `/api/update*`.
 * `build.sh` retries when the LVGL binding link fails on a fresh configure.
 

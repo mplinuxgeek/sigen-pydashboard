@@ -3,6 +3,15 @@ import asyncio
 import gc
 
 import board
+from core import settings as _settings
+from core.version import VERSION as _VERSION
+
+# the display comes up first so there is something on screen while the rest loads
+board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)), _settings.get("ui.rows"), bool(_settings.get("ui.single", True)))
+from ui import splash
+splash.show(_VERSION)
+splash.step("Loading modules", 8)
+
 from core import api, api_data, errors, ota, log, http, modbus, portal, updater, wifi as wifi_mod
 from core.ntp import Ntp
 from core.history import History
@@ -13,8 +22,7 @@ from core.app import App
 from core.state import State
 from core.dns import CaptiveDns
 
-from core import settings as _settings
-board.init(_settings.get("orientation", "landscape") == "portrait", bool(_settings.get("ui.partial", True)), _settings.get("ui.rows"), bool(_settings.get("ui.single", True)))
+splash.step("Starting services", 22)
 errors.install()
 log.restore()
 log.info("boot: MicroPython on ESP32-S3, PSRAM heap free %d KB" % (gc.mem_free() // 1024))
@@ -27,7 +35,9 @@ ntp = app.services["ntp"] = Ntp(app)
 app.on("net.up", lambda iface, ip: (setattr(ntp, "online", True), ntp.request()))
 backlight = app.services["backlight"] = Backlight(app, board)
 blank = app.services["blank"] = Blank(app, backlight)
+splash.step("Loading history", 32)
 history = app.services["history"] = History(app)
+splash.step("Loading totals", 45)
 monthly = app.services["monthly"] = Monthly(app)
 history.listeners.append(monthly.sample)          # monthly totals piggy-back on every history sample
 ntp.callbacks.append(history.on_time_synced)
@@ -36,11 +46,13 @@ server = app.services["http"] = http.Server(app)
 portal_ = portal.Portal(app, server, wifi)
 portal_.install()
 
+splash.step("Starting web server", 52)
 api.register(app, server)
 api_data.register(app, server)
 ota.register(app, server)
 updater.register(app, server)
 
+splash.step("Loading screens", 58)
 from ui.shell import Shell
 from ui.dashboard import Dashboard
 from ui.wifi_page import WifiPage
@@ -94,9 +106,13 @@ def _wifi_tab(parent, shell):
     return WifiPage(parent, app, title="WiFi")
 
 
+def _built(i, n, name):
+    splash.step("Building screens (%d/%d)" % (i, n), 64 + 32 * i // n)
+
+
 shell = app.services["shell"] = Shell(app, board, [
     ("Dashboard", _dashboard), ("Graph", _graph), ("Monthly", _monthly),
-    ("Info", _info), ("Settings", _settings), ("WiFi", _wifi_tab)])
+    ("Info", _info), ("Settings", _settings), ("WiFi", _wifi_tab)], on_progress=_built)
 
 
 # ---- root page: setup portal while the AP is up, otherwise the landing page --------------------------------------
@@ -161,7 +177,23 @@ async def preload():
     gc.collect()
 
 
+async def _splash_done():
+    """Keep the splash up until WiFi is connected (or the setup hotspot is up) and the web server is listening, at most 15 s
+    each, show "Ready" for 2 s, then fade it out."""
+    import time
+    splash.step("Connecting to WiFi...", 97)
+    t0 = time.ticks_ms()
+    while (wifi.mode == "off" or (wifi.mode == "sta" and not wifi.connected)) and time.ticks_diff(time.ticks_ms(), t0) < 15000:
+        await asyncio.sleep_ms(200)
+    while getattr(server, "server", None) is None and time.ticks_diff(time.ticks_ms(), t0) < 15000:
+        await asyncio.sleep_ms(200)                    # the web server is up: the panel is usable from the network
+    splash.step("Ready", 100)
+    await asyncio.sleep(2)                             # long enough to read, never a flash
+    await splash.finish()
+
+
 async def boot():
+    app.spawn(_splash_done, restart=False)
     app.spawn(wifi.run)
     app.spawn(server.start)
     app.spawn(poller.run)
