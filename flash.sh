@@ -1,6 +1,6 @@
 #!/bin/bash
 # Flash the board over USB.
-#   ./flash.sh                       flash what ./build.sh built (bootloader, partitions, firmware); then ./py/deploy.sh for the app
+#   ./flash.sh                       flash what ./build.sh built (bootloader, partitions, firmware); then ./scripts/deploy.sh for the app
 #   ./flash.sh sigen-pydashboard-factory.bin   flash a release's factory image (everything, at 0x0); erases settings and history
 # Port: first serial device found, or PORT=/dev/ttyACM0 ./flash.sh
 . "$(dirname "$0")/scripts/common.sh"

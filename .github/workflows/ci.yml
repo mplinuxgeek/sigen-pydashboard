@@ -18,7 +18,7 @@ jobs:
       - name: Filesystem image builds (used by the release workflow)
         run: python scripts/make_fs_image.py /tmp/fs.bin
       - name: Shell scripts parse
-        run: for f in *.sh scripts/*.sh py/deploy.sh; do bash -n "$f"; done
+        run: for f in *.sh scripts/*.sh; do bash -n "$f"; done
       - name: Patches apply to the pinned upstream sources
         run: |
           . ./versions.env

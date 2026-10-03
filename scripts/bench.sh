@@ -1,6 +1,6 @@
 #!/bin/bash
-# Full-page redraw time per screen (ms, 3 runs each).   PANEL_HOST=... PANEL_TOKEN=... ./bench.sh
-. "$(dirname "$0")/scripts/common.sh"
+# Full-page redraw time per screen (ms, 3 runs each).   PANEL_HOST=... PANEL_TOKEN=... ./scripts/bench.sh
+. "$(dirname "$0")/common.sh"
 [ -n "${1:-}" ] && PANEL_HOST=$1
 need_host; need_token
 H=http://$PANEL_HOST

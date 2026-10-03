@@ -45,7 +45,7 @@ git clone https://github.com/mplinuxgeek/sigen-pydashboard && cd sigen-pydashboa
 ./setup.sh              # fetch the pinned MicroPython + LVGL bindings and apply patches/ (see versions.env)
 ./build.sh -j8          # firmware -> micropython/ports/esp32/build-ESP32_GENERIC_S3/micropython.bin
 ./flash.sh              # first flash over USB (bootloader, partitions, firmware); PORT=/dev/ttyACM0 to choose the port
-pip install mpremote && ./py/deploy.sh    # copy the app to the board over USB, then reset it
+pip install mpremote && ./scripts/deploy.sh    # copy the app to the board over USB, then reset it
 ```
 `build.sh` finds ESP-IDF from your environment (`idf.py` on PATH), `$IDF_PATH`, or `~/esp/esp-idf-v5.5.4`.
 
@@ -56,9 +56,9 @@ Settings > OTA Key.
 ## Updating without a cable
 ```
 export PANEL_HOST=192.168.1.50 PANEL_TOKEN=<Settings > OTA Key>
-./scripts_ota.sh                                         # Python app, ~45 s, rolls back if it does not boot
+./scripts/ota.sh                                         # Python app, ~45 s, rolls back if it does not boot
 curl -X POST -H "X-OTA-Token: $PANEL_TOKEN" --data-binary @sigen-pydashboard-ota.bin http://$PANEL_HOST/api/ota   # firmware, ~1 min
-./shot.sh shot.png                                       # screenshot over HTTP
+./scripts/shot.sh shot.png                                       # screenshot over HTTP
 ```
 The route list is on the panel itself: open `http://<panel>/api` ([docs/http-api.md](docs/http-api.md)).
 
@@ -78,13 +78,13 @@ setup.sh, versions.env   fetch pinned upstream sources, apply patches/
 build.sh, flash.sh       build and first-flash the firmware
 make_factory.sh          assemble the release files (factory/OTA/app) in dist/
 backup.sh, restore.sh    back up / restore settings, app and history over USB
-board_s3_7/              board definition: sdkconfig, partitions (dual OTA + history + FAT), lv_conf.h
+scripts/                 ota.sh (push the app over WiFi), deploy.sh (over USB), shot.sh (screenshot), bench.sh, helpers
+board_s3_7/              board definition: sdkconfig, partitions (dual OTA + history + littlefs), lv_conf.h
 usermod/rgb_lcd/         C module: RGB panel, PSRAM frame buffers, vsync, blit/rotate/slide helpers
-fonts/                   icon fonts compiled into LVGL
+fonts/                   LVGL fonts (icons + digit subsets) compiled into the firmware
 patches/                 local patches to MicroPython and the LVGL binding (see patches/README.md)
-py/                      the application (copied to the board's FAT filesystem)
-scripts/, *.sh           helpers (OTA push, screenshot, benchmark)
-docs/                    features, HTTP API, architecture
+py/                      the application, copied to the board's filesystem
+docs/                    features, HTTP API, architecture, settings keys, releasing
 ```
 How it fits together: [docs/architecture.md](docs/architecture.md). Host tests: `cd py && python3 -m unittest discover tests`.
 
@@ -96,7 +96,7 @@ How it fits together: [docs/architecture.md](docs/architecture.md). Host tests: 
 * The app files live in FAT on the board, so they can be edited there.
 
 ## Performance
-Full-page redraw time on the panel (`./bench.sh`, ms):
+Full-page redraw time on the panel (`./scripts/bench.sh`, ms):
 
 | Change | Dashboard | Graph | Settings | WiFi |
 |---|---|---|---|---|

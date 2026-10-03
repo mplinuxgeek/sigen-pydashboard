@@ -1,6 +1,6 @@
 #!/bin/bash
-# Screenshot of the panel via its HTTP API.   PANEL_HOST=192.168.1.50 ./shot.sh [OUT.png]      or      ./shot.sh OUT.png HOST
-. "$(dirname "$0")/scripts/common.sh"
+# Screenshot of the panel via its HTTP API.   PANEL_HOST=192.168.1.50 ./scripts/shot.sh [OUT.png]      or      ./scripts/shot.sh OUT.png HOST
+. "$(dirname "$0")/common.sh"
 OUT=${1:-panel.png}
 [ -n "${2:-}" ] && PANEL_HOST=$2
 need_host

@@ -10,11 +10,11 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | GET | `/api/health` | — | Uptime, reset reason, version, heap, UI-lock holder |
 | GET | `/api/system` | — | Full snapshot: firmware, boot, network, inverter, memory, orientation, chip |
 | GET | `/api/version` | — | Running and inactive slot versions |
-| GET | `/api/ota` | — | Running build info (what `scripts_ota.sh` checks) |
+| GET | `/api/ota` | — | Running build info (what `scripts/ota.sh` checks) |
 | POST | `/api/ota` | ✓ | Upload a MicroPython firmware `.bin` into the inactive OTA slot, then reboot into it (rolls back unless the new image stays up 10 s) |
 | POST | `/api/ota/py` | ✓ | Upload the Python application (a `.tar` of `py/`), applied with a backup; `boot.py` rolls back after 3 failed boots |
 | POST | `/api/tuning` | ✓ | Rendering knobs `ui.partial`, `ui.rows`, `ui.single`, `ui.animate` (JSON body, `null` = default); applied on restart. See `docs/architecture.md` |
-| POST | `/api/bench/render` | ✓ | Diagnostics: force and time three full-page redraws of the current page (used by `bench.sh`) |
+| POST | `/api/bench/render` | ✓ | Diagnostics: force and time three full-page redraws of the current page (used by `scripts/bench.sh`) |
 | POST | `/api/history/clear` | ✓ | Clear the stored history |
 | GET | `/api/monthly` | — | Monthly totals as JSON: `history`, `current`, `current_billing` |
 | POST | `/api/factory-reset` | ✓ | Erase WiFi, Modbus, history, totals and settings, then restart |

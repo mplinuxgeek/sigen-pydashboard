@@ -10,7 +10,7 @@
 |---|---|
 | `sigen-pydashboard-factory.bin` | blank or bricked board: `esptool write_flash 0x0` (bootloader + partitions + firmware + Python app; erases settings and history) |
 | `sigen-pydashboard-ota.bin` | firmware update of a running board: `POST /api/ota` |
-| `sigen-pydashboard-app.tar` | Python-app update of a running board: `POST /api/ota/py` (or `./scripts_ota.sh`) |
+| `sigen-pydashboard-app.tar` | Python-app update of a running board: `POST /api/ota/py` (or `./scripts/ota.sh`) |
 | `SHA256SUMS` | checksums |
 
 The workflow fails early if the tag and `py/core/version.py` disagree. To test the build without publishing, run **Actions >

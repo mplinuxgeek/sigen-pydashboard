@@ -8,7 +8,7 @@ name: Release build
 #                                   table, firmware AND the Python app. Erases settings, WiFi and history.
 #   sigen-pydashboard-ota.bin       firmware only, for POST /api/ota on a board that is already running this project.
 #                                   NEVER flash this one at 0x0: it is an app image, not a full flash image.
-#   sigen-pydashboard-app.tar       the Python app only, for POST /api/ota/py (./scripts_ota.sh).
+#   sigen-pydashboard-app.tar       the Python app only, for POST /api/ota/py (./scripts/ota.sh).
 #   SHA256SUMS
 on:
   release:

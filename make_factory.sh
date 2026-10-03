@@ -18,6 +18,6 @@ rm -rf "$D"; mkdir -p "$D"
 python3 "$HERE/scripts/make_fs_image.py" "$D/fs.bin"
 (cd "$B" && python3 -m esptool --chip esp32s3 merge_bin --fill-flash-size 8MB -o "$D/sigen-pydashboard-factory.bin" @flash_args 0x5F0000 "$D/fs.bin")
 cp "$B/micropython.bin" "$D/sigen-pydashboard-ota.bin"
-tar cf "$D/sigen-pydashboard-app.tar" --exclude=__pycache__ --exclude=tests --exclude=deploy.sh -C "$HERE/py" board.py main.py boot.py core ui www
+tar cf "$D/sigen-pydashboard-app.tar" --exclude=__pycache__ --exclude=tests -C "$HERE/py" board.py main.py boot.py core ui www
 rm "$D/fs.bin"
 (cd "$D" && sha256sum * > SHA256SUMS && cat SHA256SUMS)
