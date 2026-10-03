@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.2 (2026-10-04)
 * Info screen: uptime now counts days ("2d 4h"), "Last sync" and the update status say how long ago they were ("Up to date (checked 3m ago)").
 
 ## 0.2.1 (2026-10-04)
