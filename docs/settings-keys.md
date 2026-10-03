@@ -19,6 +19,7 @@ page or the HTTP API; the `ui.*` knobs only via `POST /api/tuning` (applied on r
 | `last_reboot` | | Reason recorded before the last deliberate reboot |
 | `update.repo` | mplinuxgeek/sigen-pydashboard | GitHub repository whose releases the panel updates from |
 | `update.auto` | true | Daily check for a newer release (notify only; never installs by itself) |
+| `update.asset` | sigen-pydashboard-app.tar | Release asset to download (for forks that name it differently); set via `POST /api/tuning` |
 | `update.api` | https://api.github.com | API base URL. An `http://` value skips TLS (mirrors and tests); set via `POST /api/tuning` |
 | `ui.partial` | true | Draw into an internal-SRAM strip buffer instead of directly into PSRAM |
 | `ui.rows` | 40 (portrait 64) | Rows in that strip buffer (more = a little faster, uses more SRAM) |

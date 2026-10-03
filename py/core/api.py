@@ -517,7 +517,7 @@ def register(app, server):
         if err:
             return err
         for k, v in d.items():
-            if k not in ("ui.partial", "ui.rows", "ui.single", "ui.animate", "update.api"):
+            if k not in ("ui.partial", "ui.rows", "ui.single", "ui.animate", "update.api", "update.asset"):
                 return http.err(400, "unknown key " + k)
             if v is None:
                 settings.delete(k)

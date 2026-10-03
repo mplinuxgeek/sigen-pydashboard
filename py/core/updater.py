@@ -7,7 +7,7 @@ the same apply-with-rollback code as a manual upload (core/ota.py). Nothing is i
 daily check only records that an update exists.
 
 Settings: update.repo (default DEFAULT_REPO, any "owner/name"), update.auto (default true: daily check, notify only),
-update.api (default https://api.github.com; an http:// URL skips TLS, for mirrors and tests).
+update.api (default https://api.github.com; an http:// URL skips TLS, for mirrors and tests), update.asset (file name).
 HTTP: GET /api/update, POST /api/update/check, /api/update/install, /api/update/config (the POSTs need the admin token).
 """
 import asyncio
@@ -190,9 +190,10 @@ async def check(app):
             raise ValueError("GitHub answered %d" % status)
         d = json.loads(await _read_all(body, MAX_JSON))
         assets = {a["name"]: a for a in d.get("assets", [])}
-        if ASSET not in assets:
-            raise ValueError("release %s has no %s" % (d.get("tag_name"), ASSET))
-        a = assets[ASSET]
+        want = app.settings.get("update.asset", ASSET)
+        if want not in assets:
+            raise ValueError("release %s has no %s" % (d.get("tag_name"), want))
+        a = assets[want]
         dig = a.get("digest") or ""
         state.update(latest=d["tag_name"].lstrip("vV"), notes=(d.get("body") or "")[:400], size=a.get("size", 0),
                      url=a["browser_download_url"], sha256=dig[7:] if dig.startswith("sha256:") else None,
