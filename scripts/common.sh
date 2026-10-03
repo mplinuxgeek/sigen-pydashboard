@@ -33,3 +33,18 @@ load_idf() {
     fi
     . "$idf/export.sh" >/dev/null
 }
+
+# part_info NAME: prints "OFFSET SIZE" (hex) of a partition from board_s3_7/partitions.csv
+part_info() {
+    local csv="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/board_s3_7/partitions.csv"
+    awk -F'[ ,]+' -v n="$1" '$1==n {print $4, $5; found=1} END {exit !found}' "$csv" || { echo "No partition '$1' in $csv" >&2; return 1; }
+}
+
+# run_esptool: esptool from PATH, ESP-IDF, or pip
+run_esptool() {
+    if command -v esptool.py >/dev/null 2>&1; then esptool.py "$@"
+    elif command -v esptool >/dev/null 2>&1; then esptool "$@"
+    elif python3 -c "import esptool" 2>/dev/null; then python3 -m esptool "$@"
+    else echo "esptool not found: pip install esptool (or source ESP-IDF's export.sh)" >&2; return 1
+    fi
+}

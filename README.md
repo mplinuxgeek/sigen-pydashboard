@@ -62,10 +62,22 @@ curl -X POST -H "X-OTA-Token: $PANEL_TOKEN" --data-binary @sigen-pydashboard-ota
 ```
 The route list is on the panel itself: open `http://<panel>/api` ([docs/http-api.md](docs/http-api.md)).
 
+## Backup and restore (over USB)
+```
+./backup.sh                  # settings, WiFi, token, app, monthly totals and history -> backups/<timestamp>/ (~35 s)
+./backup.sh --full           # also the whole flash, firmware included (~2 min)
+./restore.sh backups/<dir>   # checks checksums, asks before writing; add --yes to skip the question, --full for a full image
+```
+Use them around anything destructive, e.g. `./backup.sh && ./flash.sh dist/sigen-pydashboard-factory.bin && ./restore.sh backups/<dir>`
+(a factory flash erases settings and history). Backups hold the WiFi password and admin token in clear; `backups/` is git-ignored.
+History can also be exported over WiFi as CSV (`GET /api/history`, `GET /api/monthly`).
+
 ## Layout
 ```
 setup.sh, versions.env   fetch pinned upstream sources, apply patches/
 build.sh, flash.sh       build and first-flash the firmware
+make_factory.sh          assemble the release files (factory/OTA/app) in dist/
+backup.sh, restore.sh    back up / restore settings, app and history over USB
 board_s3_7/              board definition: sdkconfig, partitions (dual OTA + history + FAT), lv_conf.h
 usermod/rgb_lcd/         C module: RGB panel, PSRAM frame buffers, vsync, blit/rotate/slide helpers
 fonts/                   icon fonts compiled into LVGL
