@@ -6,6 +6,7 @@ import time
 import lvgl as lv
 
 from core import tz
+from core.fmt import ago, duration
 from . import common as C
 
 
@@ -107,7 +108,7 @@ class InfoPage:
         L["ip"].set_text("IP: %s (%s)" % (w.ip or "--", "setup hotspot" if w.mode == "ap" else (w.ssid or "not connected")))
         self.refresh_update(L)
         L["python"].set_text("MicroPython %s" % ".".join(str(x) for x in sys.implementation.version[:3]))
-        L["uptime"].set_text("Uptime: %dh %dm" % (up // 3600, up % 3600 // 60))
+        L["uptime"].set_text("Uptime: %s" % duration(up))
         L["chip"].set_text("ESP32-S3, 2 cores @ %d MHz" % (__import__("machine").freq() // 1000000))
         L["storage"].set_text("Flash: 8 MB | PSRAM: 8 MB")
         L["sram"].set_text("SRAM free: %d KB" % (sf // 1024))
@@ -122,9 +123,7 @@ class InfoPage:
         if n.last_ok is None:
             L["ntp_last"].set_text("Last sync: never")
         else:
-            ago = time.ticks_diff(time.ticks_ms(), n.last_ok) // 1000
-            L["ntp_last"].set_text("Last sync: %s ago" % ("%dh %dm" % (ago // 3600, ago % 3600 // 60) if ago >= 3600 else
-                                                          "%dm %ds" % (ago // 60, ago % 60) if ago >= 60 else "%ds" % ago))
+            L["ntp_last"].set_text("Last sync: %s" % ago(time.ticks_diff(time.ticks_ms(), n.last_ok) // 1000))
         L["ntp_count"].set_text("Sync count: %d" % n.sync_count)
         t = tz.local()
         L["ntp_time"].set_text("Time: %02d:%02d:%02d %s" % (t[3], t[4], t[5], tz.abbrev()) if (n.synced and t) else "Time: --")
@@ -145,7 +144,7 @@ class InfoPage:
             L["update"].set_text("Update: %s" % u["error"])
             self.upd_lbl.set_text("Check Updates")
         elif u["checked"] is not None:
-            L["update"].set_text("Up to date")
+            L["update"].set_text("Up to date (checked %s)" % ago(time.ticks_diff(time.ticks_ms(), u["checked"]) // 1000))
             self.upd_lbl.set_text("Check Updates")
         else:
             L["update"].set_text("Updates: not checked")
