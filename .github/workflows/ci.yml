@@ -17,6 +17,8 @@ jobs:
         run: python -m pyflakes . | grep -v "undefined name 'ptr\(8\|16\|32\)'" | tee /tmp/flakes; test ! -s /tmp/flakes
       - name: Filesystem image builds (used by the release workflow)
         run: python scripts/make_fs_image.py /tmp/fs.bin
+      - name: Web UI scripts parse
+        run: for f in py/www/app.js py/www/extras.js; do node --check "$f"; done
       - name: Shell scripts parse
         run: for f in *.sh scripts/*.sh; do bash -n "$f"; done
       - name: Patches apply to the pinned upstream sources

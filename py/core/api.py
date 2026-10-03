@@ -9,11 +9,11 @@ import time
 
 import machine
 
-from . import http, log, tz, version
+from . import http, log, modbus, tz, version
 from . import timeutil as T
 
 VERSION = version.VERSION
-PROJECT = "sigen-dashboard-py"
+PROJECT = "sigen-pydashboard"
 
 # (method, path, auth, description, example curl or None)
 ROUTES = (
@@ -58,6 +58,15 @@ ROUTES = (
     ("POST", "/api/backlight/curve", True, "custom dimming curve, up to 8 points",
      """curl -X POST -H "X-OTA-Token: $T" -d '{"points":[["07:00",80],["21:00",25]]}' http://HOST/api/backlight/curve"""),
     ("GET", "/api/metrics", False, "live battery/PV/grid/load readings, same values the dashboard shows", None),
+    ("GET", "/api/auth", True, "check the admin token (200 when valid, 401 otherwise)", None),
+    ("GET", "/api/wifi", False, "WiFi state: mode, SSID, IP, signal, MAC", None),
+    ("GET", "/api/wifi/scan", True, "scan for networks (takes a few seconds): [{ssid, rssi, secure}]",
+     """curl -H "X-OTA-Token: $T" http://HOST/api/wifi/scan"""),
+    ("POST", "/api/wifi/connect", True, "save and join a network {ssid, password}; the panel's address may change",
+     """curl -X POST -H "X-OTA-Token: $T" -d '{"ssid":"home","password":"secret"}' http://HOST/api/wifi/connect"""),
+    ("POST", "/api/modbus/test", True, "try a Modbus TCP connection {ip, port} and read the inverter's model and serial",
+     """curl -X POST -H "X-OTA-Token: $T" -d '{"ip":"192.168.1.50","port":502}' http://HOST/api/modbus/test"""),
+    ("GET", "/api/tuning", False, "current rendering knobs (ui.partial, ui.rows, ui.single, ui.animate)", None),
     ("GET", "/api/update", False, "update status: running version, latest GitHub release, whether one is available, progress", None),
     ("POST", "/api/update/check", True, "ask GitHub for the latest release now",
      """curl -X POST -H "X-OTA-Token: $T" http://HOST/api/update/check"""),
@@ -83,6 +92,7 @@ ROUTES = (
     ("GET", "/index.html", False, "device landing page", None),
     ("GET", "/history-chart.html", False, "interactive Chart.js graph of stored history", None),
     ("GET", "/chart.min.js", False, "Chart.js bundle used by /history-chart.html", None),
+    ("GET", "/app.css", False, "styles of the landing page (also /app.js, /extras.js)", None),
 )
 
 _GRID_NAMES = ("on_grid", "off_grid_auto", "off_grid_manual")
@@ -525,6 +535,59 @@ def register(app, server):
                 settings.set(k, v)
         return {"ok": True}
     R("POST", "/api/tuning", tuning_post, auth=True)
+    R("GET", "/api/tuning", lambda req: {"ui.partial": settings.get("ui.partial", True), "ui.rows": settings.get("ui.rows"),
+                                         "ui.single": settings.get("ui.single", True), "ui.animate": settings.get("ui.animate", True)})
+    R("GET", "/api/auth", lambda req: {"ok": True}, auth=True)
+
+    # ---- WiFi and Modbus helpers for the web UI ---------------------------------------------------------------
+    wifi = svc["wifi"]
+
+    def wifi_state(req):
+        return {"mode": wifi.mode, "connected": bool(wifi.connected), "ssid": wifi.ssid, "ip": wifi.ip, "rssi": wifi.rssi(),
+                "mac": wifi.mac}
+
+    async def wifi_scan(req):
+        res = await wifi.scan()
+        return [{"ssid": n, "rssi": r, "secure": sec} for n, r, sec in res]
+
+    async def wifi_connect(req):
+        d, err = body_json(req)
+        if err:
+            return err
+        ssid, pw = d.get("ssid"), d.get("password", "")
+        if not isinstance(ssid, str) or not 0 < len(ssid) <= 32 or not isinstance(pw, str) or len(pw) > 63:
+            return http.err(400, "ssid (1-32 chars) and password (up to 63) are required")
+
+        async def later():                       # let this response out first: joining can drop the connection
+            await asyncio.sleep_ms(500)
+            wifi.connect(ssid, pw)
+        asyncio.create_task(later())
+        return {"ok": True, "note": "joining %s; find the panel's new address on its Info screen if it changes" % ssid}
+
+    async def modbus_test(req):
+        d, err = body_json(req)
+        if err:
+            return err
+        ip, port = d.get("ip"), d.get("port", modbus.DEFAULT_PORT)
+        if not isinstance(ip, str) or not 0 < len(ip) < 40 or not isinstance(port, int) or not 0 < port < 65536:
+            return http.err(400, "ip and port (1-65535) are required")
+        c = modbus.Client(ip, port)
+        t0 = time.ticks_ms()
+        try:
+            await c.connect()
+            conn_ms = time.ticks_diff(time.ticks_ms(), t0)
+            m = await c.read_input(modbus.DEVICE_ADDR, 30500, 15)
+            await asyncio.sleep_ms(modbus.INTER_REQUEST_DELAY_MS)
+            sn = await c.read_input(modbus.DEVICE_ADDR, 30515, 10)
+            return {"ok": True, "connect_ms": conn_ms, "model": modbus.ascii_regs(m), "serial": modbus.ascii_regs(sn)}
+        except Exception as e:
+            return {"ok": False, "error": ("%s" % e or e.__class__.__name__)[:100]}
+        finally:
+            c.close()
+    R("GET", "/api/wifi", wifi_state)
+    R("GET", "/api/wifi/scan", wifi_scan, auth=True)
+    R("POST", "/api/wifi/connect", wifi_connect, auth=True)
+    R("POST", "/api/modbus/test", modbus_test, auth=True)
     R("POST", "/api/orientation", orientation, auth=True)
     R("POST", "/api/reset", reset, auth=True)
     R("POST", "/api/reset-wifi-modbus", reset_wifi_modbus, auth=True)
@@ -543,3 +606,6 @@ def register(app, server):
     R("GET", "/tzdata.json", tzdata)
     R("GET", "/history-chart.html", page("history-chart.html"))
     R("GET", "/chart.min.js", page("chart.min.js.gz", "application/javascript", gz=True))
+    R("GET", "/app.css", page("app.css", "text/css"))
+    R("GET", "/app.js", page("app.js", "application/javascript"))
+    R("GET", "/extras.js", page("extras.js", "application/javascript"))

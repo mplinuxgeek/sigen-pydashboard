@@ -8,10 +8,10 @@ IMPORT_MAX_HISTORY = 2 * 1024 * 1024
 IMPORT_MAX_MONTHLY = 8192
 
 
-def _hist_json(h):
+def _hist_json(h, t0=0, t1=0xFFFFFFFF):
     yield '{"interval_s":300,"records":['
     first = True
-    for t, soc, b, p, g, l in h.rows():
+    for t, soc, b, p, g, l in h.rows(t0, t1):
         yield '%s{"t":%d,"soc_pct":%.2f,"battery_kw":%.3f,"pv_kw":%.3f,"grid_kw":%.3f,"load_kw":%.3f}' % (
             "" if first else ",", t, soc, b, p, g, l)
         first = False
@@ -105,7 +105,13 @@ def register(app, server):
     hist, monthly = svc["history"], svc["monthly"]
 
     def history_json(req):
-        return 200, "application/json", _hist_json(hist)
+        """Whole history, or only ?from=<unix>&to=<unix> (a day's worth is ~290 records and answers in well under a second)."""
+        try:
+            t0 = int(req.query.get("from", 0))
+            t1 = int(req.query.get("to", 0xFFFFFFFF))
+        except ValueError:
+            return http.err(400, "from and to must be unix seconds")
+        return 200, "application/json", _hist_json(hist, t0, t1)
 
     def history_csv(req):
         return 200, "text/csv", _hist_csv(hist), {"Content-Disposition": 'attachment; filename="history.csv"'}

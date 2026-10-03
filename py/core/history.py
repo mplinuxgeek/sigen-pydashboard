@@ -268,9 +268,11 @@ class History:
 
     def rows(self, t0=0, t1=0xFFFFFFFF):
         """Yield (ts, soc%, batt_kw, pv_kw, grid_kw, load_kw) for ts0 <= ts < t1, oldest first."""
-        for i in range(self.n):
+        lo = T.bisect_left(self.ts, self.n, t0) if t0 else 0                  # records are in time order
+        hi = T.bisect_left(self.ts, self.n, t1) if t1 < 0xFFFFFFFF else self.n
+        for i in range(lo, hi):
             t = self.ts[i]
-            if t0 <= t < t1:
+            if t:
                 yield t, self.soc[i] / 10, self.batt[i] / 1000, self.pv[i] / 1000, self.grid[i] / 1000, self.load[i] / 1000
 
     # ---- derived: today / billing cycle source split + peaks -------------------------------------------

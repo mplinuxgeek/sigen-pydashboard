@@ -13,6 +13,12 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | GET | `/api/ota` | — | Running build info (what `scripts/ota.sh` checks) |
 | POST | `/api/ota` | ✓ | Upload a MicroPython firmware `.bin` into the inactive OTA slot, then reboot into it (rolls back unless the new image stays up 10 s) |
 | POST | `/api/ota/py` | ✓ | Upload the Python application (a `.tar` of `py/`), applied with a backup; `boot.py` rolls back after 3 failed boots |
+| GET | `/api/auth` | ✓ | 200 when the admin token is valid (used by the web page's lock indicator) |
+| GET | `/api/wifi` | — | WiFi mode, SSID, IP, signal, MAC |
+| GET | `/api/wifi/scan` | ✓ | Scan for networks (a few seconds): `[{ssid, rssi, secure}]` |
+| POST | `/api/wifi/connect` | ✓ | `{ssid, password}`: save and join; the panel's address may change |
+| POST | `/api/modbus/test` | ✓ | `{ip, port}`: try a Modbus TCP connection and read the inverter model and serial |
+| GET | `/api/tuning` | — | Current rendering knobs |
 | GET | `/api/update` | — | Update status: running version, latest GitHub release, `available`, download progress, last error |
 | POST | `/api/update/check` | ✓ | Ask GitHub for the latest release now |
 | POST | `/api/update/install` | ✓ | Download, verify and install the release found by the last check, then reboot |
@@ -26,7 +32,7 @@ Everything the device exposes lives on the same server (port 80; asyncio HTTP se
 | POST | `/api/reset` | ✓ | Reboot |
 | GET | `/api/logs?since=<seq>` | ✓ | Log ring from a cursor |
 | POST | `/api/coredump/erase` | ✓ | Clear the stored panic |
-| GET | `/api/history` | — | History as JSON |
+| GET | `/api/history` | — | History as JSON; `?from=<unix>&to=<unix>` returns just that range (a day is ~290 records, under a second; the whole 31 days takes ~13 s) |
 | GET | `/api/history.csv` | — | History as CSV |
 | POST | `/api/history/import` | ✓ | **Replace** all stored history from CSV |
 | GET | `/api/monthly.csv` | — | Completed months' totals (Solar/Grid Import/Grid Export/Load) as CSV |

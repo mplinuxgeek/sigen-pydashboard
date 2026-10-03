@@ -81,6 +81,13 @@ Use them around anything destructive, e.g. `./backup.sh && ./flash.sh dist/sigen
 (a factory flash erases settings and history). Backups hold the WiFi password and admin token in clear; `backups/` is git-ignored.
 History can also be exported over WiFi as CSV (`GET /api/history`, `GET /api/monthly`).
 
+## Web interface
+Open `http://<panel>/` in a browser: live metrics and day charts, monthly history, import/export, system info with a live log,
+settings (Modbus with a connection test, billing, time zone, WiFi scan/join, screen blanking, backlight presets and a custom
+dimming curve, panel performance), **Updates** (check/install from GitHub, upload an app package or firmware) and **Panel
+View** (a live screenshot of the touchscreen with previous/next buttons). Changing anything needs the admin token (Settings >
+OTA Key on the panel); the lock indicator next to the token box shows whether it was accepted.
+
 ## Layout
 ```
 setup.sh, versions.env   fetch pinned upstream sources, apply patches/
