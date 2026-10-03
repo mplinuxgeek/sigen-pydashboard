@@ -13,3 +13,4 @@ panel.png
 .DS_Store
 .vscode/
 .idea/
+dist/

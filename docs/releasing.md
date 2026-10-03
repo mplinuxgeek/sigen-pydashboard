@@ -19,3 +19,5 @@ Release build > Run workflow**: the files come back as a build artifact.
 How the factory image is made: `scripts/make_fs_image.py` writes a littlefs image of `py/` (the board's `vfs` partition,
 0x5F0000), and `esptool merge_bin` places it, the bootloader, the partition table, `otadata` and the firmware into one 8 MB
 file. The layout must match `board_s3_7/partitions.csv`.
+
+To build the same files locally after `./build.sh`: `./make_factory.sh` (writes `dist/`, which is git-ignored).

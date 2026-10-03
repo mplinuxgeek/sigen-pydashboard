@@ -48,4 +48,5 @@ A fresh clone must be able to produce the firmware.
 ## Phase 7 - Release
 - [x] Prebuilt firmware as release assets: `.github/workflows/release.yml` (trigger: release published) builds factory image (firmware + Python app, verified: a littlefs image from `scripts/make_fs_image.py` boots on the real board), OTA firmware, app tar and checksums. See `docs/releasing.md`.
 - [x] Repository: github.com/mplinuxgeek/sigen-pydashboard (README links updated). Suggested description: "Sigenergy SigenStor battery/solar dashboard for the Waveshare ESP32-S3 7-inch touch display, in MicroPython + LVGL". Topics: micropython, lvgl, esp32-s3, sigenergy, solar, modbus, home-energy.
-- [ ] Final pass: after the first release build, flash `sigen-pydashboard-factory.bin` on a real board and follow the README literally.
+- [x] Factory image tested on the real board (`./make_factory.sh` then `./flash.sh dist/sigen-pydashboard-factory.bin`): booted straight to the setup AP, formatted the history partition, generated a token, firmware rollback guard cleared. Then restored settings/history from a backup.
+- [ ] Final pass: after the first release build, repeat from the downloaded release file and follow the README literally (first-run WiFi setup through the captive portal is still untested).

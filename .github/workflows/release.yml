@@ -41,16 +41,8 @@ jobs:
 
       - name: Assemble release files
         run: |
-          . /opt/esp/idf/export.sh
-          pip install --quiet littlefs-python
-          B=micropython/ports/esp32/build-ESP32_GENERIC_S3
-          mkdir -p dist
-          python3 scripts/make_fs_image.py dist/fs.bin
-          (cd "$B" && python -m esptool --chip esp32s3 merge_bin --fill-flash-size 8MB -o "$GITHUB_WORKSPACE/dist/sigen-pydashboard-factory.bin" @flash_args 0x5F0000 "$GITHUB_WORKSPACE/dist/fs.bin")
-          cp "$B/micropython.bin" dist/sigen-pydashboard-ota.bin
-          tar cf dist/sigen-pydashboard-app.tar --exclude=__pycache__ --exclude=tests --exclude=deploy.sh -C py board.py main.py boot.py core ui www
-          rm dist/fs.bin
-          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+          export IDF_PATH=/opt/esp/idf
+          ./make_factory.sh
 
       - name: Attach to the release
         if: github.event_name == 'release'
