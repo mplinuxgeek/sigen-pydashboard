@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+
+## 0.2.3 (2026-10-04)
 * Dashboard: new top bar (clock and date, status icons with tap-for-details, update dot, how old the last reading is, a one-sentence summary) and the four cards tightened to fit below it, in landscape and portrait. Data older than ~100 s dims the cards.
 * Tap the clock for a brightness dialog (pinned until Auto or the next schedule change).
 * Graph: day totals under the title; tap the chart to read the values at that time.
