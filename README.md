@@ -110,13 +110,6 @@ docs/                    features, HTTP API, architecture, settings keys, releas
 ```
 How it fits together: [docs/architecture.md](docs/architecture.md). Host tests: `cd py && python3 -m unittest discover tests`.
 
-## Differences from the C firmware
-* Modbus reads are individual registers 1 s apart (same pacing rule), so a poll cycle is ~35 s as before.
-* Bulk history import is slower (about 1 minute for 31 days) and `GET /api/history` takes ~20 s; the UI keeps running.
-* No core dump and no LVGL lock (cooperative event loop instead of tasks).
-* Firmware OTA needs the dual-slot partition layout, so flash over USB once (`./flash.sh`).
-* The app files live in FAT on the board, so they can be edited there.
-
 ## Performance
 Full-page redraw time on the panel (`./scripts/bench.sh`, ms):
 
