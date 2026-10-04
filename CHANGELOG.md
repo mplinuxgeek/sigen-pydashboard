@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+* New **Flow** screen right after the Dashboard: solar, grid, battery and home as four rings joined by the flows between them. *Now* shows live power with dots moving along the active flows, *Today* the energy since midnight, *Month* the energy over the billing period. Works in landscape and portrait.
+* Python updates are now swapped in with renames instead of copies, so an update never needs more than about twice the app's size in free storage (it ran out of space before); an update that cannot fit is refused up front with a clear message. Info shows the free storage.
 
 ## 0.2.3 (2026-10-04)
 * Dashboard: new top bar (clock and date, status icons with tap-for-details, update dot, how old the last reading is, a one-sentence summary) and the four cards tightened to fit below it, in landscape and portrait. Data older than ~100 s dims the cards.

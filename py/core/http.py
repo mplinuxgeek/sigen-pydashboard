@@ -20,7 +20,7 @@ AUTH_FAILS, AUTH_WINDOW_S, AUTH_LOCK_S = 5, 60, 300
 
 _REASONS = {200: "OK", 204: "No Content", 302: "Found", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden",
             404: "Not Found", 405: "Method Not Allowed", 409: "Conflict", 413: "Payload Too Large", 429: "Too Many Requests",
-            500: "Internal Server Error", 503: "Service Unavailable"}
+            500: "Internal Server Error", 507: "Insufficient Storage", 503: "Service Unavailable"}
 
 
 def unquote(s):

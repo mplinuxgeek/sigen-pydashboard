@@ -5,9 +5,12 @@ A top bar carries the clock and date (tap it for a brightness dialog), one sente
 
 Home screen laid out as four quadrants — **Battery, Solar, Load, Grid** — each showing live power, a fill bar, and daily totals. Battery shows SOC%/kWh, charge/discharge status, cell temperature, and a time-to-full/time-to-empty estimate; Solar shows what percentage of current household load it's directly covering; Grid shows import/export direction and on/off-grid status (idle state reads "STANDBY", matching the battery quadrant). Solar, Load, and Grid also show a Month-to-Date total alongside today's, tracking the current **billing cycle** rather than the calendar month — see Billing cycle below.
 
-Navigation across all screens is touch-driven via horizontal swipe tabs: **Dashboard**, **Graph**, **Monthly**, and **System** (which itself holds Info/Settings/WiFi sub-tabs).
+Navigation across all screens is touch-driven via horizontal swipe tabs: **Dashboard**, **Flow**, **Graph**, **Monthly**, and **System** (which itself holds Info/Settings/WiFi sub-tabs).
 
 All of a poll cycle's Modbus readings are applied to the dashboard atomically — the UI never shows a mix of some quadrants refreshed against the newest reading and others still on the previous cycle's.
+
+## Flow
+Solar, grid, battery and home drawn as four rings with the flows between them (solar to home, solar to battery, solar to grid, grid to home, grid to battery, battery to home or grid). Line width follows the amount. *Now* is live power with dots moving along the active flows; *Today* and *Month* (billing period) add up the 5-minute history and label each flow with its energy. The split between flows follows a fixed priority (solar serves the home first, then charges the battery, then exports; the battery serves what the home still needs; the grid fills the rest) and always stays within the measured import, export, charge and discharge totals.
 
 ## Modbus polling
 Polls the SigenStor plant registers on a cycle: battery SOC, battery charge/discharge power, rated capacity, and average cell temperature; PV power; grid power; load power; PV/load daily totals; grid on/off-grid status; and lifetime grid import/export counters (used to derive daily grid import/export, since Sigenergy exposes no dedicated daily grid register — this baseline is only reset by an actual midnight rollover, guarded against being corrupted by the clock still reading the 1970 epoch during early boot before SNTP completes).

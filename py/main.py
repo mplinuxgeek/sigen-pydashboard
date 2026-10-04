@@ -57,6 +57,7 @@ from ui.shell import Shell
 from ui.dashboard import Dashboard
 from ui.wifi_page import WifiPage
 from ui.graph import GraphPage
+from ui.flow_page import FlowPage
 from ui.monthly_page import MonthlyPage
 from ui.info_page import InfoPage
 from ui.settings_page import SettingsPage
@@ -86,6 +87,12 @@ def _dashboard(parent, shell):
     return d
 
 
+def _flow(parent, shell):
+    p = FlowPage(parent, app, shell)
+    state.data_cb.append(lambda: p.refresh())
+    return p
+
+
 def _graph(parent, shell):
     return GraphPage(parent, app, shell)
 
@@ -111,7 +118,7 @@ def _built(i, n, name):
 
 
 shell = app.services["shell"] = Shell(app, board, [
-    ("Dashboard", _dashboard), ("Graph", _graph), ("Monthly", _monthly),
+    ("Dashboard", _dashboard), ("Flow", _flow), ("Graph", _graph), ("Monthly", _monthly),
     ("Info", _info), ("Settings", _settings), ("WiFi", _wifi_tab)], on_progress=_built)
 
 

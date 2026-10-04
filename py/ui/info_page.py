@@ -1,6 +1,5 @@
 """System > Info: firmware, chip and memory, inverter identity, NTP diagnostics, plus Clear History / Factory Reset / Reboot."""
 import gc
-import sys
 import time
 
 import lvgl as lv
@@ -61,7 +60,7 @@ class InfoPage:
                     l.set_width(lv.pct(100))
                     l.set_long_mode(lv.label.LONG_MODE.WRAP)
                 self.L[k] = l
-        group(left, "System", ("version", "ip", "update", "python", "uptime", "reset", "signal", "sram", "psram", "pyheap"))
+        group(left, "System", ("version", "ip", "update", "storage", "uptime", "reset", "signal", "sram", "psram", "pyheap"))
         group(inv, "Inverter", ("model", "serial", "lastread", "link"), wrap=True)
         group(ntp, "NTP", ("ntp_status", "ntp_server", "ntp_last", "ntp_count", "ntp_time"))
         btns = lv.obj(parent)
@@ -108,7 +107,8 @@ class InfoPage:
         w = svc["wifi"]
         L["ip"].set_text("IP: %s (%s)" % (w.ip or "--", "setup hotspot" if w.mode == "ap" else (w.ssid or "not connected")))
         self.refresh_update(L)
-        L["python"].set_text("MicroPython %s" % ".".join(str(x) for x in sys.implementation.version[:3]))
+        from core import ota
+        L["storage"].set_text("Storage free: %d KB" % (ota.free_bytes() // 1024))
         L["uptime"].set_text("Uptime: %s" % duration(up))
         import machine
         names = {machine.PWRON_RESET: "power-on", machine.HARD_RESET: "hard reset", machine.WDT_RESET: "restart or watchdog",

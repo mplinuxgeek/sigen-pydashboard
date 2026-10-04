@@ -269,6 +269,8 @@ async def install(app):
     app.services["poller"].pause(True)
     w = None
     try:
+        if st["size"]:
+            ota.check_space(st["size"])
         expected = await _expected_sha(st)
         if not expected:
             raise ValueError("release has no checksum for the app file")

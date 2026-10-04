@@ -16,7 +16,7 @@ free (the C build ran down to a few KB).
 > Unofficial. Not affiliated with or endorsed by Sigenergy or Waveshare. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## Features
-Dashboard (top bar with clock, status and summary; four quadrants, peak markers, source-split bars) · Graph (paged day view, day totals, tap to read values) · Monthly (bar chart, billing cycle, tap a month for totals and year-on-year change) ·
+Dashboard (top bar with clock, status and summary; four quadrants, peak markers, source-split bars) · Flow (live and cumulative energy-flow diagram) · Graph (paged day view, day totals, tap to read values) · Monthly (bar chart, billing cycle, tap a month for totals and year-on-year change) ·
 System Info / Settings / WiFi · landscape and portrait · 5-minute history in a raw flash ring · monthly and per-day totals ·
 SNTP + POSIX time zones · WiFi provisioning (setup AP + captive portal + on-device manager) · screen blanking, scheduled night
 screen-off, PWM backlight curve · HTTP API + web page + Chart.js history · CSV import/export · animated page slides ·

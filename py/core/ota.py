@@ -13,7 +13,8 @@ import sys
 from . import http
 
 OTA_CONFIRM_S = 10
-APP_ENTRIES = ("board.py", "main.py", "boot.py", "core", "ui", "www", "features")
+# swap order: boot.py last, so the rollback guard stays in place while everything else is exchanged
+APP_ENTRIES = ("board.py", "main.py", "core", "ui", "www", "features", "boot.py")
 BLOCK = 4096
 
 
@@ -252,19 +253,37 @@ async def stage_tar(read):
     return files
 
 
+def free_bytes():
+    st = os.statvfs("/")
+    return st[0] * st[3]
+
+
+def check_space(size):
+    """Refuse an update that cannot fit before writing anything: the package is unpacked next to the running app."""
+    need, have = int(size * 1.15) + 65536, free_bytes()
+    if need > have:
+        raise ValueError("not enough free storage on the panel (need about %d KB, have %d KB)" % (need // 1024, have // 1024))
+
+
 def apply_staged(app, files, reason="Python OTA"):
-    """Back up the running tree to /ota_bak, replace it with STAGE, arm the boot-time rollback and schedule a reboot."""
+    """Swap the staged tree in: the running files move to /ota_bak and the new ones take their place. Both are renames, so
+    no second copy of the app is ever written (the flash filesystem is only ~2 MB). The boot-time rollback is armed first."""
     _rm_tree("/ota_bak")
     _mkdirs("/ota_bak")
-    for name in APP_ENTRIES:
-        if _exists(name):
-            _copy_tree(name, "/ota_bak/" + name)
-    for name in os.listdir(STAGE):
-        _rm_tree(name)
-        _copy_tree(STAGE + "/" + name, name)
-    _rm_tree(STAGE)
     with open("/ota_pending", "w") as f:
         json.dump({"n": 0}, f)
+    new = os.listdir(STAGE)
+    for name in APP_ENTRIES:
+        if name in new:
+            if _exists(name):
+                os.rename(name, "/ota_bak/" + name)
+            os.rename(STAGE + "/" + name, name)
+    for name in new:                                   # anything else the package carries
+        if _exists(STAGE + "/" + name):
+            if _exists(name):
+                _rm_tree(name)
+            os.rename(STAGE + "/" + name, name)
+    _rm_tree(STAGE)
     app.log.info("ota: python update installed (%d files), rebooting" % files)
 
     async def later():
@@ -275,6 +294,11 @@ def apply_staged(app, files, reason="Python OTA"):
 
 
 async def upload_python(req, app):
+    try:
+        check_space(req.length)
+    except ValueError as e:
+        app.log.error("ota: python update rejected: %s" % e)
+        return http.err(507, str(e))
     app.services["poller"].pause(True)
     got = 0
 

@@ -188,7 +188,7 @@ def register(app, server):
                     "timezone": z[3], "posix_tz": z[2]},
             "inverter": {"host": ip, "port": port, "responding": state.alive, "model": state.model, "serial": state.serial},
             "memory": {"internal_free": f, "internal_largest_block": big, "internal_min_free": f, "psram_free": pf,
-                       "flash_mb": 8, "psram_mb": 8, "python_free": gc.mem_free()},
+                       "flash_mb": 8, "psram_mb": 8, "python_free": gc.mem_free(), "storage_free": ota.free_bytes()},
             "display": {"orientation": settings.get("orientation", "landscape"),
                         "backlight_percent": svc["backlight"].resolve()[0]},
             "hardware": {"chip": "ESP32-S3, 2 cores"}}
@@ -435,8 +435,8 @@ def register(app, server):
     # ---- UI ------------------------------------------------------------------------------------------------
     def view_info(changed=False):
         sh = svc["shell"]
-        names = ("dashboard", "graph", "monthly", "system", "system", "system")
-        tabs = (None, None, None, "info", "settings", "wifi")
+        names = ("dashboard", "flow", "graph", "monthly", "system", "system", "system")
+        tabs = (None, None, None, None, "info", "settings", "wifi")
         i = sh.active
         return {"ok": True, "changed": changed, "view": names[i] + ("/" + tabs[i] if tabs[i] else ""), "tile": names[i],
                 "tab": tabs[i]}
