@@ -9,9 +9,15 @@ This is the MicroPython sibling of [sigen-dashboard](https://github.com/mplinuxg
 features and HTTP API; the Python version keeps its code, heap and frame buffers in PSRAM, which leaves ~75 KB of internal SRAM
 free (the C build ran down to a few KB).
 
-| Dashboard | Graph | Monthly |
+![A tour of the screens](docs/img/tour.gif)
+
+| Dashboard | Flow (live) | Flow (today) |
 |---|---|---|
-| ![Dashboard](docs/img/dashboard.png) | ![Graph](docs/img/graph.png) | ![Monthly](docs/img/monthly.png) |
+| ![Dashboard](docs/img/dashboard.png) | ![Flow, live](docs/img/flow-now.png) | ![Flow, today](docs/img/flow-today.png) |
+
+| Flow (billing period) | Graph | Monthly |
+|---|---|---|
+| ![Flow, month](docs/img/flow-month.png) | ![Graph](docs/img/graph.png) | ![Monthly](docs/img/monthly.png) |
 
 > Unofficial. Not affiliated with or endorsed by Sigenergy or Waveshare. See [THIRD_PARTY.md](THIRD_PARTY.md).
 
@@ -94,7 +100,7 @@ setup.sh, versions.env   fetch pinned upstream sources, apply patches/
 build.sh, flash.sh       build and first-flash the firmware
 make_factory.sh          assemble the release files (factory/OTA/app) in dist/
 backup.sh, restore.sh    back up / restore settings, app and history over USB
-scripts/                 ota.sh (push the app over WiFi), deploy.sh (over USB), shot.sh (screenshot), bench.sh, helpers
+scripts/                 ota.sh (push the app over WiFi), deploy.sh (over USB), shot.sh (one screenshot), capture_screens.py (every screen + GIF tour), bench.sh, helpers
 board_s3_7/              board definition: sdkconfig, partitions (dual OTA + history + littlefs), lv_conf.h
 usermod/rgb_lcd/         C module: RGB panel, PSRAM frame buffers, vsync, blit/rotate/slide helpers
 fonts/                   LVGL fonts (icons + digit subsets) compiled into the firmware

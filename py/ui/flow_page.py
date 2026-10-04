@@ -269,7 +269,7 @@ class FlowPage:
         sy, by_ = top + R + 2, H - R - 34
         gy = (sy + by_) // 2
         gx, hx = R + (10 if self.portrait else 14), W - R - (10 if self.portrait else 14)
-        dx = int(R * 0.72)
+        dx = int(R * 0.5)
         ytop, ybot = gy - 20, gy + 20
         rdy = int(math.sqrt(R * R - dx * dx))
         r = int(min(72, ytop - (sy + rdy) - 14, cx - dx - (gx + R) - 26))
