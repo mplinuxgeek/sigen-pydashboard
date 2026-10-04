@@ -150,7 +150,7 @@ class Dashboard:
         if self.portrait:
             self.t_sum = label(p, 15, BAR_H + 2, LEFT, font(16), LABEL, "", 450)
         else:
-            self.t_sum = label(bar, 236, 8, LEFT, font(18), LABEL, "", 352)
+            self.t_sum = label(bar, 236, 10, LEFT, font(16), LABEL, "", 356)
         self.t_sum.set_long_mode(lv.label.LONG_MODE.DOTS)
         for obj, cb in ((left, self.on_clock), (right, self.on_status)):
             if cb:
@@ -700,7 +700,7 @@ class Dashboard:
                 self._covered(lbl, solar, batt, load)
             self._split_bar(*d["today"])
             sol, bat, load = d["today"]
-            self.self_pct = None if load <= 0.05 else int(max(0.0, min((sol + bat) / load * 100.0, 100.0)))
+            self.self_pct = None if load <= 0.05 else int(max(0.0, min((sol + bat) / load * 100.0, 100.0)) + 0.5)
             pk = d["peaks"]
             self.pk["sol"].set(self.s_x0, self.s_w, self.s_bar_y, pk["pv"], self.sol_kw, 0)
             self.pk["load"].set(self.l_x0, self.l_w, self.l_bar_y, pk["load"], self.inv_kw, 0)

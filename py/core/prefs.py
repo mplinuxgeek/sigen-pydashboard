@@ -6,6 +6,7 @@ from . import settings
 
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+NOISE_KW = 0.15                        # flows below this are meter noise, not "importing"
 STALE_S = 100                          # a poll cycle is ~35 s: three missed cycles make the data stale
 
 
@@ -47,26 +48,26 @@ def fmt_kw(v, decimals=2):
 
 def summary(alive, age_s, soc, batt_kw, pv_kw, load_kw, grid_kw, grid_on, self_pct, dec=1):
     """One sentence for the dashboard bar and its tone: ("ok" | "warn" | "bad" | "idle"). self_pct is today's share of the load
-    met without the grid (None = unknown). Keep it short: the bar has room for roughly 45 characters."""
+    met without the grid (None = unknown). Keep it short: the bar has room for roughly 44 characters."""
     if age_s is None:
         return "Waiting for the inverter...", "idle"
     if not alive or age_s > STALE_S:
         return "No fresh data (last %s): check Settings" % _age(age_s), "warn"
     if grid_on is False:
         return "Off-grid: running on battery and solar", "bad"
-    chg = batt_kw > 0.05
-    if grid_kw > 0.05:
+    chg = batt_kw > NOISE_KW
+    if grid_kw > NOISE_KW:
         main = "Importing %.*f kW" % (dec, grid_kw) + (" + charging battery" if chg else " from the grid")
-    elif grid_kw < -0.05:
+    elif grid_kw < -NOISE_KW:
         main = "Exporting %.*f kW" % (dec, -grid_kw) + (" + charging battery" if chg else " to the grid")
-    elif batt_kw < -0.05:
+    elif batt_kw < -NOISE_KW:
         main = "Running on battery"
-    elif pv_kw > 0.05:
+    elif pv_kw > NOISE_KW:
         main = "Running on solar"
     else:
         main = "Idle"
-    if self_pct is not None and len(main) <= 26:
-        main += "  |  %d%% self-powered" % self_pct
+    if self_pct is not None and len(main) + 26 <= 44:       # "| 100% self-powered today" (the share of today's load met without the grid)
+        main += " | %d%% self-powered today" % self_pct
     return main, "ok"
 
 

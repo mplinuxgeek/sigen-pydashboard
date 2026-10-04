@@ -73,8 +73,12 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(self.s(pv_kw=2)[0], "Running on solar")
         self.assertEqual(self.s()[0], "Idle")
 
+    def test_tiny_flows_are_noise(self):
+        self.assertEqual(self.s(grid_kw=0.09, pv_kw=2.1)[0], "Running on solar")
+        self.assertEqual(self.s(grid_kw=-0.1, batt_kw=0.1)[0], "Idle")
+
     def test_self_powered_only_when_it_fits(self):
-        self.assertIn("100% self-powered", self.s(batt_kw=-3, self_pct=100)[0])
+        self.assertIn("100% self-powered today", self.s(batt_kw=-3, self_pct=100)[0])
         self.assertNotIn("self-powered", self.s(grid_kw=13.4, batt_kw=18.3, self_pct=100)[0])
 
 
