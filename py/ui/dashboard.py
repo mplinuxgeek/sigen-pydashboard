@@ -68,13 +68,13 @@ class Dashboard:
             self.K = self.card_h / 238.0
         Y = self.Y
         # bar geometry shared by build_*() and the refresh code (landscape defaults; portrait overrides)
-        self.b_center, self.b_half, self.b_bar_y = 146, 132, Y(176)
+        self.b_center, self.b_half, self.b_bar_y = 148, 131, Y(176)
         self.b_icon = (304, 73, Y(50), Y(128))              # fill x, width, top, max height inside the battery icon
-        self.s_x0, self.s_w, self.s_bar_y = 15, 364, Y(176)
-        self.l_x0, self.l_w, self.l_bar_y = 15, 364, Y(176)
-        self.g_center, self.g_half, self.g_bar_y = 196, 180, Y(176)
+        self.s_x0, self.s_w, self.s_bar_y = 17, 364, Y(176)
+        self.l_x0, self.l_w, self.l_bar_y = 17, 364, Y(176)
+        self.g_center, self.g_half, self.g_bar_y = 198, 181, Y(176)
         self.sc_w = 383 - 65 - 4
-        self.split_x, self.split_y, self.split_w, self.split_h = 15, Y(150), 364, 12
+        self.split_x, self.split_y, self.split_w, self.split_h = 17, Y(150), 364, 12
         self.build_bar(self.parent)
         if self.portrait:
             self.build_portrait(self.parent)
@@ -101,10 +101,10 @@ class Dashboard:
         bar.set_pos(0, 0)
         bar.set_size(W, BAR_H)
         bar.remove_flag(lv.obj.FLAG.SCROLLABLE)
-        rect(bar, 12, BAR_H - 1, W - 24, 1, DIV)
+        rect(bar, 0, BAR_H - 3, W, 1, DIV)
         left = self.bar_left = lv.obj(bar)
         left.remove_style_all()
-        left.set_pos(12, 0)
+        left.set_pos(15, 0)
         left.set_size(lv.SIZE_CONTENT, BAR_H - 2)
         left.set_flex_flow(lv.FLEX_FLOW.ROW)
         left.set_flex_align(lv.FLEX_ALIGN.START, lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER)
@@ -145,7 +145,7 @@ class Dashboard:
             icon.set_style_text_font(lv.font_mdi_24, 0)
             icon.set_style_text_color(kit.rgb(NO_DATA), 0)
             icon.set_text(glyph)
-        right.align(lv.ALIGN.TOP_RIGHT, -12, 0)
+        right.align(lv.ALIGN.TOP_RIGHT, -15, 0)
         # summary sentence
         if self.portrait:
             self.t_sum = label(p, 15, BAR_H + 2, LEFT, font(16), LABEL, "", 450)
@@ -166,36 +166,36 @@ class Dashboard:
         self.b_outline = kit.outline(c, 298, Y(44), 85, Y(140), NO_DATA, 8, 3)
         self.b_nub = rect(c, 324, Y(36), 34, 11, NO_DATA, 4)
         self.b_pct = label(c, 15, Y(42), LEFT, font(48), NO_DATA, "--%")
-        self.b_time = label(c, 15, Y(94), LEFT, font(16), NO_DATA, "")
+        self.b_time = label(c, 15, Y(94) - 2, LEFT, font(16), NO_DATA, "")
         self.b_fill = rect(c, 304, Y(178), 73, 0, NO_DATA, 4)
         self.b_kwh = label(c, 340, Y(192), CENTER, font(16), NO_DATA, "-- kWh")
         self.b_power = label(c, 149, Y(110), CENTER, font(30), NO_DATA, "-- kW")
         self.b_badge = kit.Badge(c, font(16), "NO DATA", 149, by - 29, CENTER, 2)
-        rect(c, 13, by, 268, 24, TRACK_BG, 6)
-        kit.outline(c, 13, by, 268, 24, BAR_BORDER, 6)
-        rect(c, 146, by + 2, 2, 20, LABEL)
-        self.b_bar = rect(c, 148, by + 2, 0, 20, NO_DATA, 4)
+        rect(c, 15, by, 268, 24, TRACK_BG, 6)
+        kit.outline(c, 15, by, 268, 24, BAR_BORDER, 6)
+        rect(c, 148, by + 2, 2, 20, LABEL)
+        self.b_bar = rect(c, 150, by + 2, 0, 20, NO_DATA, 4)
         kit.glow(self.b_bar, NO_DATA)
         self.b_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
         self.pk["bchg"] = kit.PeakMarker(c, by)
         self.pk["bdis"] = kit.PeakMarker(c, by)
         inv = "%.0f kW" % self.inv_kw
         ty = by + 29
-        label(c, 13, ty, LEFT, font(20), LABEL, inv)
-        label(c, 147, ty, CENTER, font(20), LABEL, "0")
-        label(c, 281, ty, RIGHT, font(20), LABEL, inv)
+        label(c, 15, ty, LEFT, font(16), LABEL, inv)
+        label(c, 149, ty, CENTER, font(16), LABEL, "0")
+        label(c, 283, ty, RIGHT, font(16), LABEL, inv)
 
     def _ticks(self, c, kw, big_fnt=16):
         ty = self.s_bar_y + 29
-        label(c, 13, ty, LEFT, font(16), LABEL, "0 kW")
-        for x, f in ((105, .25), (197, .5), (289, .75)):
+        label(c, 15, ty, LEFT, font(16), LABEL, "0 kW")
+        for x, f in ((107, .25), (199, .5), (291, .75)):
             label(c, x, ty, CENTER, font(14), LABEL, "%.1f" % (kw * f))
-        label(c, 381, ty, RIGHT, font(16), LABEL, "%.0f kW" % kw)
+        label(c, 383, ty, RIGHT, font(16), LABEL, "%.0f kW" % kw)
 
     def _bar_frame(self, c):
         by = self.s_bar_y
-        rect(c, 13, by, 368, 24, TRACK_BG, 6)
-        for x in (104, 196, 288):
+        rect(c, 15, by, 368, 24, TRACK_BG, 6)
+        for x in (106, 198, 290):
             m = rect(c, x, by + 2, 2, 20, LABEL)
             m.set_style_bg_opa(kit.OPA._40, 0)
 
@@ -206,17 +206,17 @@ class Dashboard:
         self.s_value = label(c, 15, Y(42), LEFT, font(48), NO_DATA, "-- kW")
         self.s_daily = label(c, 15, Y(94), LEFT, font(16), NO_DATA, "Today: -- kWh")
         self.s_mtd = label(c, 15, Y(118), LEFT, font(16), NO_DATA, "MTD: -- kWh")
-        self.s_self = label(c, 15, Y(144), LEFT, font(16), NO_DATA, "--%", 45)
+        self.s_self = label(c, 15, Y(144) + 4, LEFT, font(16), NO_DATA, "--%", 45)
         self.s_self.set_long_mode(lv.label.LONG_MODE.CLIP)
-        self.s_self_fill = kit.mini_bar(c, 65, Y(145), 383 - 65, 14, SOL_BORDER)
+        self.s_self_fill = kit.mini_bar(c, 65, Y(145) + 4, 383 - 65, 14, SOL_BORDER)
         self._bar_frame(c)
-        self.s_target = rect(c, 15, by + 2, 0, 20, LOAD_FILL, 4)
+        self.s_target = rect(c, 17, by + 2, 0, 20, LOAD_FILL, 4)
         self.s_target.set_style_bg_opa(kit.OPA._0, 0)
-        self.s_bar = rect(c, 15, by + 2, 0, 20, SOL_FILL, 4)
+        self.s_bar = rect(c, 17, by + 2, 0, 20, SOL_FILL, 4)
         kit.glow(self.s_bar, SOL_FILL)
         self.s_bar.set_style_bg_grad_color(kit.rgb(SOL_BORDER), 0)
         self.s_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
-        kit.outline(c, 13, by, 368, 24, BAR_BORDER, 6)
+        kit.outline(c, 15, by, 368, 24, BAR_BORDER, 6)
         self.pk["sol"] = kit.PeakMarker(c, by)
         self._ticks(c, self.sol_kw)
 
@@ -232,20 +232,20 @@ class Dashboard:
         self.l_mtd_split = label(c, 383, Y(118), RIGHT, lv.font_load_split_16, NO_DATA, "")
         self.l_mtd_split.set_recolor(True)
         # source-split bar (solar / battery / grid share of today's load)
-        rect(c, 13, self.split_y - 2, 368, 16, TRACK_BG, 6)
+        rect(c, 15, self.split_y - 2, 368, 16, TRACK_BG, 6)
         self.l_split = []
         for col in (SOL_BORDER, BATT_BORDER, IMP_BORDER):
             self.l_split.append(rect(c, self.split_x, self.split_y, 0, self.split_h, col))
         self.l_split[0].set_style_radius(4, 0)
         self.l_split[2].set_style_radius(4, 0)
-        kit.outline(c, 13, self.split_y - 2, 368, 16, BAR_BORDER, 6)
+        kit.outline(c, 15, self.split_y - 2, 368, 16, BAR_BORDER, 6)
         self._bar_frame(c)
         self.l_seg = []
         for col in (LOAD_FILL, BATT_BORDER, IMP_BORDER):
-            self.l_seg.append(rect(c, 15, by + 2, 0, 20, col))
+            self.l_seg.append(rect(c, 17, by + 2, 0, 20, col))
         self.l_seg[0].set_style_radius(4, 0)
         self.l_seg[2].set_style_radius(4, 0)
-        kit.outline(c, 13, by, 368, 24, BAR_BORDER, 6)
+        kit.outline(c, 15, by, 368, 24, BAR_BORDER, 6)
         self.pk["load"] = kit.PeakMarker(c, by)
         self._ticks(c, self.inv_kw)
 
@@ -258,27 +258,27 @@ class Dashboard:
         self.g_mtd = label(c, 15, Y(118), LEFT, font(16), NO_DATA, "MTD: In -- / Out -- kWh")
         self.g_value = label(c, 15, Y(42), LEFT, font(48), NO_DATA, "-- kW")
         self.g_badge = kit.Badge(c, font(16), "GRID", 199, by - 29, CENTER, 2)
-        rect(c, 13, by, 368, 24, TRACK_BG, 6)
-        kit.outline(c, 13, by, 368, 24, BAR_BORDER, 6)
-        rect(c, 196, by + 2, 2, 20, NO_DATA)
-        self.g_bar = rect(c, 196, by + 2, 0, 20, NO_DATA, 4)
+        rect(c, 15, by, 368, 24, TRACK_BG, 6)
+        kit.outline(c, 15, by, 368, 24, BAR_BORDER, 6)
+        rect(c, 198, by + 2, 2, 20, NO_DATA)
+        self.g_bar = rect(c, 198, by + 2, 0, 20, NO_DATA, 4)
         kit.glow(self.g_bar, NO_DATA)
         self.g_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
         self.pk["gimp"] = kit.PeakMarker(c, by)
         self.pk["gexp"] = kit.PeakMarker(c, by)
         inv = "%.0f kW" % self.inv_kw
         ty = by + 29
-        label(c, 13, ty, LEFT, font(20), LABEL, inv)
-        label(c, 197, ty, CENTER, font(20), LABEL, "0")
-        label(c, 381, ty, RIGHT, font(20), LABEL, inv)
+        label(c, 15, ty, LEFT, font(16), LABEL, inv)
+        label(c, 199, ty, CENTER, font(16), LABEL, "0")
+        label(c, 383, ty, RIGHT, font(16), LABEL, inv)
 
     def build_portrait(self, p):
         """480x800: four stacked bands under the bar and summary line (Solar, Battery, Load, Grid), smaller fonts, wider bars."""
         F, Y, top, h, step = font, self.Y, self.top, self.card_h, self.card_h + GAP
         self.b_center = self.b_half = 0
         by = Y(142)
-        self.s_x0, self.s_w, self.s_bar_y = 15, 446, by
-        self.l_x0, self.l_w, self.l_bar_y = 15, 446, by
+        self.s_x0, self.s_w, self.s_bar_y = 17, 446, by
+        self.l_x0, self.l_w, self.l_bar_y = 17, 446, by
         self.b_bar_y = self.g_bar_y = by
         ty = by + 28
         # solar
@@ -291,22 +291,22 @@ class Dashboard:
         self.s_self.set_long_mode(lv.label.LONG_MODE.CLIP)
         self.sc_w = 465 - 65 - 4
         self.s_self_fill = kit.mini_bar(c, 65, Y(117), 465 - 65, 14, SOL_BORDER)
-        rect(c, 13, by, 450, 24, TRACK_BG, 6)
-        for x in (125, 237, 349):
+        rect(c, 15, by, 450, 24, TRACK_BG, 6)
+        for x in (127, 239, 351):
             m = rect(c, x, by + 2, 2, 20, LABEL)
             m.set_style_bg_opa(kit.OPA._40, 0)
-        self.s_target = rect(c, 15, by + 2, 0, 20, LOAD_FILL, 4)
+        self.s_target = rect(c, 17, by + 2, 0, 20, LOAD_FILL, 4)
         self.s_target.set_style_bg_opa(kit.OPA._0, 0)
-        self.s_bar = rect(c, 15, by + 2, 0, 20, SOL_FILL, 4)
+        self.s_bar = rect(c, 17, by + 2, 0, 20, SOL_FILL, 4)
         kit.glow(self.s_bar, SOL_FILL)
         self.s_bar.set_style_bg_grad_color(kit.rgb(SOL_BORDER), 0)
         self.s_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
-        kit.outline(c, 13, by, 450, 24, BAR_BORDER, 6)
+        kit.outline(c, 15, by, 450, 24, BAR_BORDER, 6)
         self.pk["sol"] = kit.PeakMarker(c, by)
-        label(c, 13, ty, LEFT, F(14), LABEL, "0 kW")
-        for x, f in ((126, .25), (238, .5), (350, .75)):
+        label(c, 15, ty, LEFT, F(14), LABEL, "0 kW")
+        for x, f in ((128, .25), (240, .5), (352, .75)):
             label(c, x, ty, CENTER, F(14), LABEL, "%.1f" % (self.sol_kw * f))
-        label(c, 463, ty, RIGHT, F(14), LABEL, "%.0f kW" % self.sol_kw)
+        label(c, 465, ty, RIGHT, F(14), LABEL, "%.0f kW" % self.sol_kw)
         # battery
         c = self.b_card = kit.card(p, 0, top + step, 480, h, kit.BATT_BG, BATT_BORDER)
         kit.title(c, F(24), LABEL, "BATTERY")
@@ -320,20 +320,20 @@ class Dashboard:
         self.b_icon = (ix + 5, iw - 10, iy + 5, ih - 10)
         self.b_kwh = label(c, ix + iw // 2, iy + ih + 3, CENTER, F(16), NO_DATA, "-- kWh")
         x2 = ix - 12
-        self.b_center = (13 + x2) // 2
-        self.b_half = self.b_center - 13 - 2
-        rect(c, 13, by, x2 - 13, 24, TRACK_BG, 6)
-        kit.outline(c, 13, by, x2 - 13, 24, BAR_BORDER, 6)
+        self.b_center = (15 + x2) // 2
+        self.b_half = self.b_center - 15 - 2
+        rect(c, 15, by, x2 - 15, 24, TRACK_BG, 6)
+        kit.outline(c, 15, by, x2 - 15, 24, BAR_BORDER, 6)
         rect(c, self.b_center, by + 2, 2, 20, LABEL)
         self.b_bar = rect(c, self.b_center, by + 2, 0, 20, NO_DATA, 4)
         kit.glow(self.b_bar, NO_DATA)
         self.b_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
         self.pk["bchg"] = kit.PeakMarker(c, by)
         self.pk["bdis"] = kit.PeakMarker(c, by)
-        self.b_power = label(c, self.b_center, Y(82), CENTER, F(30), NO_DATA, "-- kW")
+        self.b_power = label(c, self.b_center, Y(76), CENTER, F(30), NO_DATA, "-- kW")
         self.b_badge = kit.Badge(c, F(16), "NO DATA", self.b_center, by - 28, CENTER, 2)
         inv = "%.0f kW" % self.inv_kw
-        label(c, 13, ty, LEFT, F(16), LABEL, inv)
+        label(c, 15, ty, LEFT, F(16), LABEL, inv)
         label(c, self.b_center, ty, CENTER, F(16), LABEL, "0")
         label(c, x2, ty, RIGHT, F(16), LABEL, inv)
         # load
@@ -346,29 +346,29 @@ class Dashboard:
         self.l_mtd = label(c, 15, Y(96), LEFT, F(16), NO_DATA, "MTD: -- kWh")
         self.l_mtd_split = label(c, 465, Y(96), RIGHT, lv.font_load_split_16, NO_DATA, "")
         self.l_mtd_split.set_recolor(True)
-        self.split_x, self.split_y, self.split_w, self.split_h = 15, Y(122), 446, 10
-        rect(c, 13, self.split_y - 2, 450, 14, TRACK_BG, 6)
+        self.split_x, self.split_y, self.split_w, self.split_h = 17, Y(122), 446, 10
+        rect(c, 15, self.split_y - 2, 450, 14, TRACK_BG, 6)
         self.l_split = []
         for col in (SOL_BORDER, BATT_BORDER, IMP_BORDER):
             self.l_split.append(rect(c, self.split_x, self.split_y, 0, self.split_h, col))
         self.l_split[0].set_style_radius(4, 0)
         self.l_split[2].set_style_radius(4, 0)
-        kit.outline(c, 13, self.split_y - 2, 450, 14, BAR_BORDER, 6)
-        rect(c, 13, by, 450, 24, TRACK_BG, 6)
-        for x in (125, 237, 349):
+        kit.outline(c, 15, self.split_y - 2, 450, 14, BAR_BORDER, 6)
+        rect(c, 15, by, 450, 24, TRACK_BG, 6)
+        for x in (127, 239, 351):
             m = rect(c, x, by + 2, 2, 20, LABEL)
             m.set_style_bg_opa(kit.OPA._40, 0)
         self.l_seg = []
         for col in (LOAD_FILL, BATT_BORDER, IMP_BORDER):
-            self.l_seg.append(rect(c, 15, by + 2, 0, 20, col))
+            self.l_seg.append(rect(c, 17, by + 2, 0, 20, col))
         self.l_seg[0].set_style_radius(4, 0)
         self.l_seg[2].set_style_radius(4, 0)
-        kit.outline(c, 13, by, 450, 24, BAR_BORDER, 6)
+        kit.outline(c, 15, by, 450, 24, BAR_BORDER, 6)
         self.pk["load"] = kit.PeakMarker(c, by)
-        label(c, 13, ty, LEFT, F(14), LABEL, "0 kW")
-        for x, f in ((126, .25), (238, .5), (350, .75)):
+        label(c, 15, ty, LEFT, F(14), LABEL, "0 kW")
+        for x, f in ((128, .25), (240, .5), (352, .75)):
             label(c, x, ty, CENTER, F(14), LABEL, "%.1f" % (self.inv_kw * f))
-        label(c, 463, ty, RIGHT, F(14), LABEL, "%.0f kW" % self.inv_kw)
+        label(c, 465, ty, RIGHT, F(14), LABEL, "%.0f kW" % self.inv_kw)
         # grid
         c = self.g_card = kit.card(p, 0, top + 3 * step, 480, h, kit.GRID_BG_IDLE, IMP_BORDER)
         kit.title(c, F(24), LABEL, "GRID")
@@ -376,20 +376,20 @@ class Dashboard:
         self.g_value = label(c, 15, Y(34), LEFT, F(34), NO_DATA, "-- kW")
         self.g_daily = label(c, 15, Y(76), LEFT, F(16), NO_DATA, "Today: In -- / Out -- kWh")
         self.g_mtd = label(c, 15, Y(96), LEFT, F(16), NO_DATA, "MTD: In -- / Out -- kWh")
-        self.g_badge = kit.Badge(c, F(16), "GRID", 240, by - 28, CENTER, 2)
-        self.g_center, self.g_half = 238, 223
-        rect(c, 13, by, 450, 24, TRACK_BG, 6)
-        kit.outline(c, 13, by, 450, 24, BAR_BORDER, 6)
-        rect(c, 238, by + 2, 2, 20, NO_DATA)
-        self.g_bar = rect(c, 238, by + 2, 0, 20, NO_DATA, 4)
+        self.g_badge = kit.Badge(c, F(16), "GRID", 465, Y(42), RIGHT, 2)       # beside the value: the band is too short to stack it under the lines
+        self.g_center, self.g_half = 240, 223
+        rect(c, 15, by, 450, 24, TRACK_BG, 6)
+        kit.outline(c, 15, by, 450, 24, BAR_BORDER, 6)
+        rect(c, 240, by + 2, 2, 20, NO_DATA)
+        self.g_bar = rect(c, 240, by + 2, 0, 20, NO_DATA, 4)
         kit.glow(self.g_bar, NO_DATA)
         self.g_bar.set_style_bg_grad_dir(lv.GRAD_DIR.HOR, 0)
         self.pk["gimp"] = kit.PeakMarker(c, by)
         self.pk["gexp"] = kit.PeakMarker(c, by)
         inv = "%.0f kW" % self.inv_kw
-        label(c, 13, ty, LEFT, F(16), LABEL, inv)
-        label(c, 238, ty, CENTER, F(16), LABEL, "0")
-        label(c, 463, ty, RIGHT, F(16), LABEL, inv)
+        label(c, 15, ty, LEFT, F(16), LABEL, inv)
+        label(c, 240, ty, CENTER, F(16), LABEL, "0")
+        label(c, 465, ty, RIGHT, F(16), LABEL, inv)
 
     # ---- status icons --------------------------------------------------------------------------
     def paint_icons(self):
