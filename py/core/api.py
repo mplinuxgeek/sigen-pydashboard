@@ -9,7 +9,7 @@ import time
 
 import machine
 
-from . import http, log, modbus, tz, version
+from . import http, log, modbus, prefs, tz, version
 from . import timeutil as T
 
 VERSION = version.VERSION
@@ -225,6 +225,8 @@ def register(app, server):
                 "night": {"enabled": n.night_enabled, "start_minute": n.night_start, "end_minute": n.night_end},
                 "timezone": {"country_code": z[0], "zone": z[1], "label": z[3]},
                 "orientation": {"portrait": settings.get("orientation", "landscape") == "portrait"},
+                "display": {"clock24": prefs.clock24(), "date_format": prefs.date_fmt(), "kw_decimals": prefs.kw_decimals(),
+                            "high_contrast": prefs.high_contrast()},
                 "billing": {"date": int(settings.get("billing.day", 1)), "mode": int(settings.get("billing.mode", 0)),
                             "anchor": "%04d-%02d-%02d" % (a // 10000, a // 100 % 100, a % 100),
                             "cycle_length_days": int(settings.get("billing.cycle_len", 28))}}
@@ -263,6 +265,13 @@ def register(app, server):
             return E(400, str(e))
         if ns is not None and ne is not None and ns == ne:
             return E(400, "night_start_minute and night_end_minute must differ")
+        for key in ("clock24", "high_contrast"):
+            if key in d and not isinstance(d[key], bool):
+                return E(400, key + " must be true or false")
+        if "date_format" in d and d["date_format"] not in ("dmy", "mdy", "iso"):
+            return E(400, 'date_format must be "dmy", "mdy" or "iso"')
+        if "kw_decimals" in d and d["kw_decimals"] not in (1, 2):
+            return E(400, "kw_decimals must be 1 or 2")
         anchor = None
         if "billing_anchor" in d:
             try:
@@ -285,6 +294,12 @@ def register(app, server):
             sel = (cc,) + match[0]
         if isinstance(d.get("ota_pin"), str):
             settings.set("ota.token", d["ota_pin"])
+        for key, name in (("clock24", "ui.clock24"), ("date_format", "ui.date_fmt"), ("kw_decimals", "ui.kw_dec"),
+                          ("high_contrast", "ui.contrast")):
+            if key in d:
+                settings.set(name, d[key])
+        if "kw_decimals" in d and svc.get("dashboard"):
+            svc["dashboard"].sizing_changed = True
         if inv is not None:
             settings.set("sizing.inverter_kw", float(inv))
         if sol is not None:
@@ -469,6 +484,17 @@ def register(app, server):
         asyncio.create_task(later())
         return {"ok": True, "seconds": secs}
     server.route("POST", "/api/bench/splash", show_splash, auth=True)
+
+    def tap(req):
+        """Diagnostics: a synthetic tap at ?x=&y= (panel pixels), for hands-free UI tests and screenshots."""
+        import board
+        try:
+            x, y = int(req.query.get("x", "")), int(req.query.get("y", ""))
+        except ValueError:
+            return http.err(400, "x and y are required (panel pixels)")
+        board.inject_drag(x, y, x, y, 2)
+        return {"ok": True}
+    server.route("POST", "/api/bench/tap", tap, auth=True)
 
     shot_busy = []
 

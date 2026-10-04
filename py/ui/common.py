@@ -13,6 +13,10 @@ DANGER = 0xF87171
 FIELD_BG = 0x0F172A
 FIELD_BORDER = 0x334155
 
+from core import prefs as _prefs
+if _prefs.high_contrast():
+    MUTED = 0xCBD5E1
+
 _cols = {}
 
 
@@ -141,7 +145,34 @@ def overlay():
     return ov
 
 
-def confirm(title, text, on_yes, yes_label="Yes", danger=False):
+def dialog(title, width=520):
+    """Modal card on the top layer: returns (overlay, panel); the panel is a column with `title` already in it."""
+    ov = overlay()
+    p = lv.obj(ov)
+    p.set_size(width, lv.SIZE_CONTENT)
+    p.center()
+    p.set_style_bg_color(c(CARD), 0)
+    p.set_style_bg_opa(lv.OPA.COVER, 0)
+    p.set_style_radius(14, 0)
+    p.set_style_pad_all(20, 0)
+    p.set_flex_flow(lv.FLEX_FLOW.COLUMN)
+    p.set_style_pad_row(12, 0)
+    p.remove_flag(lv.obj.FLAG.SCROLLABLE)
+    label(p, title, 24)
+    return ov, p
+
+
+def button_row(parent):
+    row = lv.obj(parent)
+    row.remove_style_all()
+    row.set_size(lv.pct(100), lv.SIZE_CONTENT)
+    row.set_flex_flow(lv.FLEX_FLOW.ROW)
+    row.set_flex_align(lv.FLEX_ALIGN.END, lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER)
+    row.set_style_pad_column(12, 0)
+    return row
+
+
+def confirm(title, text, on_yes, yes_label="Yes", danger=False, on_no=None, no_label="Cancel"):
     ov = overlay()
     p = lv.obj(ov)
     p.set_size(520, lv.SIZE_CONTENT)
@@ -161,7 +192,7 @@ def confirm(title, text, on_yes, yes_label="Yes", danger=False):
     row.set_flex_flow(lv.FLEX_FLOW.ROW)
     row.set_flex_align(lv.FLEX_ALIGN.END, lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER)
     row.set_style_pad_column(12, 0)
-    button(row, "Cancel", CARD, TEXT, lambda: ov.delete()).set_style_bg_color(c(FIELD_BORDER), 0)
+    button(row, no_label, CARD, TEXT, lambda: (ov.delete(), on_no() if on_no else None)).set_style_bg_color(c(FIELD_BORDER), 0)
     button(row, yes_label, DANGER if danger else ACCENT, ACCENT_TEXT, lambda: (ov.delete(), on_yes()))
     return ov
 

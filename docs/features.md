@@ -1,6 +1,8 @@
 # Features
 
 ## Dashboard
+A top bar carries the clock and date (tap it for a brightness dialog), one sentence about what the system is doing ("Importing 13.4 kW + charging battery | 99% self-powered"), how old the last reading is, a dot when an update is waiting, and the inverter / clock / WiFi status icons (tap them for details and shortcuts). If readings stop arriving for about 100 s the cards dim and the bar says so.
+
 Home screen laid out as four quadrants — **Battery, Solar, Load, Grid** — each showing live power, a fill bar, and daily totals. Battery shows SOC%/kWh, charge/discharge status, cell temperature, and a time-to-full/time-to-empty estimate; Solar shows what percentage of current household load it's directly covering; Grid shows import/export direction and on/off-grid status (idle state reads "STANDBY", matching the battery quadrant). Solar, Load, and Grid also show a Month-to-Date total alongside today's, tracking the current **billing cycle** rather than the calendar month — see Billing cycle below.
 
 Navigation across all screens is touch-driven via horizontal swipe tabs: **Dashboard**, **Graph**, **Monthly**, and **System** (which itself holds Info/Settings/WiFi sub-tabs).

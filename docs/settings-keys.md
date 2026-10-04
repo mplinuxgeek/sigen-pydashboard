@@ -17,6 +17,11 @@ page or the HTTP API; the `ui.*` knobs only via `POST /api/tuning` (applied on r
 | `ota.token` | generated | Admin token for write endpoints (`X-OTA-Token`) |
 | `system.watchdog_s` | 300 | Restart if the UI loop stalls this long (0 = off). Disabled while a `/dev_mode` file exists |
 | `last_reboot` | | Reason recorded before the last deliberate reboot |
+| `ui.clock24` | true | 24-hour clock in the dashboard's top bar (false = 12-hour with AM/PM) |
+| `ui.date_fmt` | dmy | `dmy` "Sat 4 Oct", `mdy` "Sat Oct 4", `iso` "2026-10-04" |
+| `ui.kw_dec` | 2 | Digits after the point on the big power values (1 or 2) |
+| `ui.contrast` | false | Lighter secondary text (restart to apply) |
+| `update.dismissed` | | Version whose "update available" dot was dismissed with *Later* |
 | `update.repo` | mplinuxgeek/sigen-pydashboard | GitHub repository whose releases the panel updates from |
 | `update.auto` | true | Daily check for a newer release (notify only; never installs by itself) |
 | `update.asset` | sigen-pydashboard-app.tar | Release asset to download (for forks that name it differently); set via `POST /api/tuning` |

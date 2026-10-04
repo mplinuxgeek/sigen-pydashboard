@@ -442,6 +442,33 @@
     }
   };
 
+  // ---- save the day's charts as one picture ----------------------------------------------------------------------
+  $("btnSaveChart").onclick = function () {
+    var p = $("powerChart"),
+      c = $("socChart");
+    if (!p || !c || !p.width) return;
+    var title = $("dayLabel").textContent || "Today";
+    var pad = 16,
+      head = 40,
+      out = document.createElement("canvas");
+    out.width = Math.max(p.width, c.width) + 2 * pad;
+    out.height = head + p.height + c.height + 3 * pad;
+    var g = out.getContext("2d");
+    g.fillStyle = "#0f172a";
+    g.fillRect(0, 0, out.width, out.height);
+    g.fillStyle = "#f1f5f9";
+    g.font = "bold 20px sans-serif";
+    g.fillText("SigenStor - " + title + "  (" + new Date().toLocaleDateString() + ")", pad, 28);
+    g.drawImage(p, pad, head);
+    g.drawImage(c, pad, head + p.height + pad);
+    var a = document.createElement("a");
+    a.href = out.toDataURL("image/png");
+    a.download = "sigen-" + new Date().toISOString().slice(0, 10) + "-" + title.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   // ---- panel view ------------------------------------------------------------------------------------------------------
   var panelTimer = null,
     panelBusy = false,

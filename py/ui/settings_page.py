@@ -2,7 +2,7 @@
 Fields save live (leaving the page autosaves; the keyboard's tick saves with a status line)."""
 import lvgl as lv
 
-from core import modbus, tz
+from core import modbus, prefs, tz
 from . import common as C
 
 TIMEOUTS = (30, 60, 120, 300, 600)
@@ -12,6 +12,8 @@ PRESETS = ("off", "gentle", "aggressive", "custom")
 LBL_W = 130
 ACCEPT_HOST = "0123456789."
 ACCEPT_INT = "0123456789"
+DATE_LABELS = ("Sat 4 Oct", "Sat Oct 4", "2026-10-04")
+DATE_KEYS = ("dmy", "mdy", "iso")
 ACCEPT_TOKEN = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_."
 
 
@@ -104,6 +106,10 @@ class SettingsPage:
             self.slider.add_event_cb(lambda e: setattr(shell, "suppress", False), ev, None)
         self.preset = self._dd_row(R, "Night curve", ["Off", "Gentle", "Aggressive", "Custom (API)"], self.on_preset)
         self.orient = self._dd_row(R, "Orientation", ["Landscape", "Portrait"], self.on_orient)
+        self.clock_cb = C.checkbox(C.row(R), "24-hour clock")
+        self.date_dd = self._dd_row(R, "Date format", list(DATE_LABELS))
+        self.dec_dd = self._dd_row(R, "Power digits", ["12.87 kW", "12.9 kW"])
+        self.contrast_cb = C.checkbox(C.row(R), "High contrast text (restart)")
         self.status = C.label(L, "", 16, 0xF87171)
         self.build_kb(parent)
 
@@ -224,7 +230,7 @@ class SettingsPage:
     def on_hide(self):
         self.hide_kb()
         for dd in (self.country, self.region, self.blank_dd, self.night_start, self.night_end, self.bmode,
-                   self.preset, self.orient):
+                   self.preset, self.orient, self.date_dd, self.dec_dd):
             if dd.is_open():
                 dd.close()
         self.save(False)
@@ -267,6 +273,10 @@ class SettingsPage:
         self.slider.set_value(max(bl.resolve()[0], 3), 0)
         self.update_bl_states()
         self.orient.set_selected(1 if s.get("orientation", "landscape") == "portrait" else 0)
+        C.set_checked(self.clock_cb, prefs.clock24())
+        self.date_dd.set_selected(DATE_KEYS.index(prefs.date_fmt()))
+        self.dec_dd.set_selected(0 if prefs.kw_decimals() == 2 else 1)
+        C.set_checked(self.contrast_cb, prefs.high_contrast())
         self.status.set_text("")
         self.loading = False
 
@@ -446,6 +456,12 @@ class SettingsPage:
         tok = self.token.get_text().strip()
         if tok:
             s.set("ota.token", tok)
+        s.set("ui.clock24", C.checked(self.clock_cb))
+        s.set("ui.date_fmt", DATE_KEYS[self.date_dd.get_selected()])
+        dec = 2 if self.dec_dd.get_selected() == 0 else 1
+        decimals_changed = dec != prefs.kw_decimals()
+        s.set("ui.kw_dec", dec)
+        s.set("ui.contrast", C.checked(self.contrast_cb))
         resized = (float(s.get("sizing.inverter_kw", 25.0)), float(s.get("sizing.solar_kw", 25.0))) != (inv, sol)
         s.set("sizing.inverter_kw", inv)
         s.set("sizing.solar_kw", sol)
@@ -454,7 +470,7 @@ class SettingsPage:
         s.set("billing.cycle_len", cl)
         s.set("billing.anchor", self.anchor)
         svc["monthly"].apply_settings()
-        if resized and svc.get("dashboard"):
+        if (resized or decimals_changed) and svc.get("dashboard"):
             svc["dashboard"].sizing_changed = True
         blank = svc["blank"]
         blank.set_blank(C.checked(self.blank_cb), TIMEOUTS[self.blank_dd.get_selected()])

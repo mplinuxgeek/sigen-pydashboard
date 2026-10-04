@@ -142,11 +142,15 @@ class Backlight:
             self.apply()
 
     def notify_touch(self):
-        self.manual = None                       # whoever stands at the panel can always recover it
+        if not getattr(self, "pinned", False):
+            self.manual = None                   # whoever stands at the panel can always recover it
         self.boost_until = time.ticks_add(time.ticks_ms(), BOOST_HOLD_MS)
         self.apply()
 
-    def set_manual(self, percent):
+    def set_manual(self, percent, pinned=False):
+        """Hold a brightness until the schedule next changes. pinned=True (the dashboard's brightness dialog) also survives
+        touches; the default (web slider, API) is a preview that the next touch on the panel cancels."""
+        self.pinned = bool(pinned)
         percent = max(0, min(100, int(percent)))
         m = self.minute()
         self.manual = (max(percent, BL_ACTIVE_FLOOR) if percent else 0, m if m is not None else 0)

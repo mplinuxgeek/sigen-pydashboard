@@ -61,15 +61,16 @@ class InfoPage:
                     l.set_width(lv.pct(100))
                     l.set_long_mode(lv.label.LONG_MODE.WRAP)
                 self.L[k] = l
-        group(left, "System", ("version", "ip", "update", "python", "uptime", "chip", "storage", "sram", "psram", "pyheap"))
-        group(inv, "Inverter", ("model", "serial"), wrap=True)
+        group(left, "System", ("version", "ip", "update", "python", "uptime", "reset", "signal", "sram", "psram", "pyheap"))
+        group(inv, "Inverter", ("model", "serial", "lastread", "link"), wrap=True)
         group(ntp, "NTP", ("ntp_status", "ntp_server", "ntp_last", "ntp_count", "ntp_time"))
         btns = lv.obj(parent)
         btns.remove_style_all()
         btns.set_size(lv.pct(100), lv.SIZE_CONTENT)
-        btns.set_flex_flow(lv.FLEX_FLOW.ROW)
+        btns.set_flex_flow(lv.FLEX_FLOW.ROW_WRAP)                  # two rows in portrait
         btns.set_flex_align(lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER, lv.FLEX_ALIGN.CENTER)
         btns.set_style_pad_column(16, 0)
+        btns.set_style_pad_row(8, 0)
         btns.align(lv.ALIGN.BOTTOM_MID, 0, -30)
         C.button(btns, "Clear History", C.DANGER, C.ACCENT_TEXT, self.clear_history)
         C.button(btns, "Factory Reset", C.DANGER, C.ACCENT_TEXT, self.factory_reset)
@@ -109,14 +110,24 @@ class InfoPage:
         self.refresh_update(L)
         L["python"].set_text("MicroPython %s" % ".".join(str(x) for x in sys.implementation.version[:3]))
         L["uptime"].set_text("Uptime: %s" % duration(up))
-        L["chip"].set_text("ESP32-S3, 2 cores @ %d MHz" % (__import__("machine").freq() // 1000000))
-        L["storage"].set_text("Flash: 8 MB | PSRAM: 8 MB")
+        import machine
+        names = {machine.PWRON_RESET: "power-on", machine.HARD_RESET: "hard reset", machine.WDT_RESET: "restart or watchdog",
+                 machine.SOFT_RESET: "software"}
+        L["reset"].set_text("Last reset: %s" % names.get(machine.reset_cause(), "unknown"))
+        w = svc["wifi"]
+        L["signal"].set_text("WiFi signal: %s" % ("%d dBm" % w.rssi() if w.connected else "--"))
         L["sram"].set_text("SRAM free: %d KB" % (sf // 1024))
         L["psram"].set_text("PSRAM free: %d KB" % (pf // 1024))
         L["pyheap"].set_text("Python heap free: %d KB" % (gc.mem_free() // 1024))
         s = svc["state"]
         L["model"].set_text("Model: %s" % (s.model or "--"))
         L["serial"].set_text("Serial: %s" % (s.serial or "--"))
+        if s.last_commit_ms is None:
+            L["lastread"].set_text("Last reading: none yet")
+        else:
+            L["lastread"].set_text("Last reading: %s" % ago(time.ticks_diff(time.ticks_ms(), s.last_commit_ms) // 1000))
+        fails = svc["poller"].fail_streak
+        L["link"].set_text("Link: %s" % ("OK" if s.alive and not fails else "failing (%d)" % fails if fails else "connecting"))
         n = svc["ntp"]
         L["ntp_status"].set_text("Synced: %s (%s)" % ("Yes" if n.synced else "No", n.status_text()))
         L["ntp_server"].set_text("Server: %s" % (n.server or "--"))
@@ -159,8 +170,9 @@ class InfoPage:
         if u["available"]:
             C.confirm("Install %s?" % u["latest"], "Downloads the new version from GitHub, checks it, installs it and restarts "
                       "the panel. Settings and history are kept. If the new version fails to start, the old one returns "
-                      "automatically." + ("\n\n" + u["notes"][:160] if u["notes"] else ""),
-                      lambda: asyncio.create_task(updater.install(self.app)), "Install")
+                      "automatically." + ("\n\n" + u["notes"] if u["notes"] else ""),
+                      lambda: asyncio.create_task(updater.install(self.app)), "Install",
+                      on_no=lambda: self.app.settings.set("update.dismissed", u["latest"]), no_label="Later")
         else:
             asyncio.create_task(updater.check(self.app))
 

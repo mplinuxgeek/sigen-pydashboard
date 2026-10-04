@@ -803,6 +803,11 @@ function loadSettings() {
       document.getElementById("setNightStart").value = minuteToHhmm(s.night.start_minute);
       document.getElementById("setNightEnd").value = minuteToHhmm(s.night.end_minute);
       document.getElementById("setOrientation").value = s.orientation.portrait ? "portrait" : "landscape";
+      var dsp = s.display || {};
+      document.getElementById("setClock24").checked = dsp.clock24 !== false;
+      document.getElementById("setDateFmt").value = dsp.date_format || "dmy";
+      document.getElementById("setKwDec").value = String(dsp.kw_decimals || 2);
+      document.getElementById("setContrast").checked = !!dsp.high_contrast;
       var wantCountry = s.timezone.country_code,
         wantZone = s.timezone.zone;
       if (tzData) {
@@ -898,6 +903,10 @@ document.getElementById("setSaveBtn").onclick = function () {
     night_end_minute: hhmmToMinute(document.getElementById("setNightEnd").value),
     country_code: document.getElementById("setCountry").value,
     zone: document.getElementById("setZone").value,
+    clock24: document.getElementById("setClock24").checked,
+    date_format: document.getElementById("setDateFmt").value,
+    kw_decimals: parseInt(document.getElementById("setKwDec").value, 10),
+    high_contrast: document.getElementById("setContrast").checked,
   };
   var pin = document.getElementById("setOtaPin").value;
   if (pin) body.ota_pin = pin;

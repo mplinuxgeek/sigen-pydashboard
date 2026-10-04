@@ -45,6 +45,22 @@ def parse_version(v):
     return tuple(out)
 
 
+def short_notes(body, max_lines=4, max_chars=230):
+    """The release notes' bullet points as plain text for the panel (markdown stripped, a few lines, ellipsis if cut)."""
+    out = []
+    for line in (body or "").replace("\r", "").split("\n"):
+        line = line.strip()
+        if line[:2] in ("* ", "- "):
+            line = "- " + line[2:].replace("`", "").replace("**", "")
+            out.append(line)
+    text = "\n".join(out[:max_lines])
+    if len(text) > max_chars:
+        text = text[:max_chars].rsplit(" ", 1)[0] + "..."
+    elif len(out) > max_lines:
+        text += "\n..."
+    return text
+
+
 def firmware_api():
     try:
         import rgb_lcd
@@ -195,7 +211,7 @@ async def check(app):
             raise ValueError("release %s has no %s" % (d.get("tag_name"), want))
         a = assets[want]
         dig = a.get("digest") or ""
-        state.update(latest=d["tag_name"].lstrip("vV"), notes=(d.get("body") or "")[:400], size=a.get("size", 0),
+        state.update(latest=d["tag_name"].lstrip("vV"), notes=short_notes(d.get("body")), size=a.get("size", 0),
                      url=a["browser_download_url"], sha256=dig[7:] if dig.startswith("sha256:") else None,
                      sums_url=assets[SUMS]["browser_download_url"] if SUMS in assets else None, checked=time.ticks_ms())
         state["available"] = parse_version(state["latest"]) > parse_version(version.VERSION)

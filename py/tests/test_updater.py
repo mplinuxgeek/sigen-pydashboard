@@ -31,6 +31,23 @@ class VersionTests(unittest.TestCase):
         self.assertEqual(updater.needs_firmware_api('VERSION = "1"\n'), 0)
 
 
+class NotesTests(unittest.TestCase):
+    BODY = "Intro line\n\n* First `thing` changed\n* **Second** thing\n- Third\n* Fourth\n* Fifth\n\nFiles: boilerplate"
+
+    def test_bullets_only_and_stripped(self):
+        t = updater.short_notes(self.BODY)
+        self.assertTrue(t.startswith("- First thing changed\n- Second thing\n- Third"))
+        self.assertNotIn("boilerplate", t)
+        self.assertNotIn("`", t)
+
+    def test_limits(self):
+        self.assertEqual(updater.short_notes(self.BODY).count("\n"), 4)          # four bullets then "..."
+        self.assertTrue(updater.short_notes(self.BODY).endswith("..."))
+        long = "* " + "word " * 100
+        self.assertLessEqual(len(updater.short_notes(long)), 240)
+        self.assertEqual(updater.short_notes(None), "")
+
+
 class UrlTests(unittest.TestCase):
     def test_split(self):
         self.assertEqual(updater._split("https://api.github.com/repos/a/b"), ("https", "api.github.com", 443, "/repos/a/b", "api.github.com"))

@@ -36,6 +36,28 @@ class MonthlyPage:
             self.page -= 1
         self.rebuild()
 
+    def inspect(self):
+        """Tap a month's bars: its four totals and the change on the same month last year."""
+        import board
+        a = lv.area_t()
+        self.chart.get_coords(a)
+        w = a.x2 - a.x1 + 1
+        x = board._touch.x - a.x1
+        n = len(self.vis)
+        if not 0 <= x < w or n == 0:
+            return
+        r = self.vis[min(x * n // w, n - 1)]
+        text = "%s '%02d:  Load %d   Solar %d   Import %d   Export %d kWh" % (MONTHS[r[1] - 1], r[0] % 100, r[5], r[2], r[3], r[4])
+        prev = [q for q in self.rows if q[0] == r[0] - 1 and q[1] == r[1]]
+        if prev:
+            q = prev[0]
+
+            def delta(new, old):
+                return "n/a" if old <= 0 else "%+d%%" % int((new - old) * 100.0 / old + (0.5 if new >= old else -0.5))
+            text += "\nvs %s '%02d:  Load %s   Solar %s   Import %s" % (MONTHS[q[1] - 1], q[0] % 100, delta(r[5], q[5]), delta(r[2], q[2]), delta(r[3], q[3]))
+        self.readout.set_text(text)
+        self.readout.set_style_text_color(C.c(C.TEXT), 0)
+
     def placeholder(self, text):
         l = C.label(self.parent, text, 20, C.MUTED)
         l.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
@@ -79,6 +101,9 @@ class MonthlyPage:
         if not vis:
             self.placeholder("Nothing in this window.")
             return
+        self.rows, self.vis = rows, vis
+        self.readout = C.label(p, "Tap a month for its totals", 16, C.MUTED)
+        self.readout.set_height(42)
         mx = max(max(r[2:6]) for r in vis)
         axis_max = 50 if mx <= 0 else int(-(-mx // 50) * 50)
         row = lv.obj(p)
@@ -115,6 +140,9 @@ class MonthlyPage:
             for k, r in enumerate(vis):
                 ch.set_series_value_by_id(ser, k, int(r[idx] + 0.5))
         ch.refresh()
+        ch.add_flag(lv.obj.FLAG.CLICKABLE)
+        self.chart = ch
+        C.on_click(ch, self.inspect)
         ax = lv.obj(p)
         ax.remove_style_all()
         ax.set_size(lv.pct(100), lv.SIZE_CONTENT)

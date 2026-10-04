@@ -23,6 +23,10 @@ TRACK_BG = 0x141820
 STATUS_OK = 0x22C55E
 MODBUS_BUSY = 0x38BDF8
 
+from core import prefs as _prefs
+if _prefs.high_contrast():                    # Settings > Display > High contrast text (needs a restart)
+    LABEL, NO_DATA = 0xCBD5E1, 0x6B7686
+
 LEFT, RIGHT, CENTER = 0, 1, 2
 
 _cache = {}
@@ -172,13 +176,13 @@ def title(parent, fnt, color, text):
 class Badge:
     """Content-sized pill around a label; re-anchor after every text change (the width changes with the text)."""
 
-    def __init__(self, parent, fnt, text, anchor_x, anchor_y, align):
+    def __init__(self, parent, fnt, text, anchor_x, anchor_y, align, pad_ver=3):
         self.ax, self.ay, self.align = anchor_x, anchor_y, align
         b = self.box = lv.obj(parent)
         b.remove_style_all()
         b.set_size(lv.SIZE_CONTENT, lv.SIZE_CONTENT)
         b.set_style_pad_hor(9, 0)
-        b.set_style_pad_ver(3, 0)
+        b.set_style_pad_ver(pad_ver, 0)
         b.set_style_radius(8, 0)
         b.set_style_bg_color(rgb(LABEL), 0)
         b.set_style_bg_opa(OPA._30, 0)

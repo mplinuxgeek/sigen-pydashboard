@@ -44,7 +44,8 @@
         <h2 style="margin-top: 8px; margin-bottom: 14px; font-size: 1.1rem; color: #f8fafc">Charts</h2>
         <div class="daybtns">
           <button type="button" class="daybtn tabbtn" id="btnOlderDay">&lt; Older</button><span id="dayLabel" class="day-label"></span
-          ><button type="button" class="daybtn tabbtn" id="btnNewerDay">Newer &gt;</button>
+          ><button type="button" class="daybtn tabbtn" id="btnNewerDay">Newer &gt;</button
+          ><button type="button" class="daybtn tabbtn" id="btnSaveChart" title="Download the two charts as one picture">Save image</button>
         </div>
         <div id="chartStatus" role="status" aria-live="polite">Loading...</div>
         <div class="stats">
@@ -205,6 +206,26 @@
                 <label>Manual Brightness <span id="setBlPercent" style="color: #38bdf8; font-weight: 600"></span></label
                 ><input type="range" id="setBlSlider" min="0" max="100" />
               </div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2>Display Format</h2></div>
+              <label class="checkline"><input type="checkbox" id="setClock24" /> 24-hour clock on the panel</label>
+              <div class="field">
+                <label>Date format</label
+                ><select id="setDateFmt">
+                  <option value="dmy">Sat 4 Oct</option>
+                  <option value="mdy">Sat Oct 4</option>
+                  <option value="iso">2026-10-04</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Power digits</label
+                ><select id="setKwDec">
+                  <option value="2">12.87 kW</option>
+                  <option value="1">12.9 kW</option>
+                </select>
+              </div>
+              <label class="checkline"><input type="checkbox" id="setContrast" /> High contrast text (applies after a restart)</label>
             </div>
             <div class="card">
               <div class="card-header"><h2>Panel Performance</h2></div>

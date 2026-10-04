@@ -43,7 +43,8 @@ def join_gaps(vals, tss):
 
 class GraphPage:
     def __init__(self, parent, app, shell):
-        self.app, self.parent = app, parent
+        self.app, self.parent, self.shell = app, parent, shell
+        self.tip_timer = None
         self.offset = 0
         self.hist_rev = -1
         self.built_key = None
@@ -131,6 +132,7 @@ class GraphPage:
         soc, solar, load = [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS
         gimp, gexp, sts = [NONE] * DAY_SLOTS, [NONE] * DAY_SLOTS, [0] * DAY_SLOTS
         have = False
+        e_pv = e_imp = e_exp = e_bat = 0                   # watt-samples; x (5/60)/1000 -> kWh
         lo, hi = bisect_left(h.ts, h.n, midnight), bisect_left(h.ts, h.n, midnight_next)    # only this day's records
         for i in range(lo, hi):
             t = h.ts[i]
@@ -146,12 +148,20 @@ class GraphPage:
             elif g < 0:
                 gexp[slot] = -g // 100
             sts[slot] = t
+            e_pv += max(h.pv[i], 0)
+            e_imp += max(g, 0)
+            e_exp += max(-g, 0)
+            e_bat += max(-h.batt[i], 0)
             have = True
         if not have:
             self.placeholder("No data yet today -- check back soon." if self.offset == 0 else "No data recorded for this day.")
             return
         for arr in (soc, solar, load, gimp, gexp):
             join_gaps(arr, sts)
+        k = 5.0 / 60 / 1000
+        txt = "Solar %.1f   Import %.1f   Export %.1f   Battery used %.1f kWh" % (e_pv * k, e_imp * k, e_exp * k, e_bat * k)
+        C.label(p, txt, 16, C.MUTED)
+        self.day = (sts, soc, solar, load, gimp, gexp, midnight)
         inv_kw = float(self.app.settings.get("sizing.inverter_kw", 25.0))
         sec_max = int(inv_kw * 10)
         import board
@@ -191,6 +201,7 @@ class GraphPage:
                 ser = ov.add_series(kit.rgb(col), lv.chart.AXIS.SECONDARY_Y if sec else lv.chart.AXIS.PRIMARY_Y)
                 self.feed(ov, ser, vals)
                 ov.refresh()
+            self.inspect_layer(stack)
             self.axis(row, 0.0, inv_kw, "kW", lv.FLEX_ALIGN.START)
         ax = lv.obj(p)
         ax.remove_style_all()
@@ -217,6 +228,74 @@ class GraphPage:
                                ("Load", C_LOAD, last(load, 10, "%.2f kW")), ("Grid Import", C_IMP, last(gimp, 10, "%.2f kW")),
                                ("Grid Export", C_EXP, last(gexp, 10, "%.2f kW"))):
             self.chip(leg, name, col, val)
+
+    def inspect_layer(self, stack):
+        """Tap the chart to read the values at that time; tap again (or wait a few seconds) to dismiss."""
+        self.cursor = lv.obj(stack)
+        self.cursor.remove_style_all()
+        self.cursor.set_size(2, lv.pct(100))
+        self.cursor.set_style_bg_color(C.c(0xF1F5F9), 0)
+        self.cursor.set_style_bg_opa(lv.OPA._60, 0)
+        self.cursor.add_flag(lv.obj.FLAG.HIDDEN)
+        self.cursor.remove_flag(lv.obj.FLAG.CLICKABLE)
+        self.tip = lv.label(stack)
+        self.tip.set_style_bg_color(C.c(C.CARD), 0)
+        self.tip.set_style_bg_opa(lv.OPA._90, 0)
+        self.tip.set_style_text_color(C.c(C.TEXT), 0)
+        self.tip.set_style_text_font(kit.font(16), 0)
+        self.tip.set_style_radius(6, 0)
+        self.tip.set_style_pad_all(6, 0)
+        self.tip.add_flag(lv.obj.FLAG.HIDDEN)
+        self.tip.remove_flag(lv.obj.FLAG.CLICKABLE)
+        self.stack = stack
+        C.on_click(stack, self.inspect)
+
+    def inspect(self):
+        import board
+        sts, soc, solar, load, gimp, gexp, midnight = self.day
+        a = lv.area_t()
+        self.stack.get_coords(a)
+        w = a.x2 - a.x1 + 1
+        x = board._touch.x - a.x1
+        if not 0 <= x < w:
+            return
+        if not self.tip.has_flag(lv.obj.FLAG.HIDDEN) and abs(self.cursor.get_x() - x) < 24:
+            return self.hide_tip()
+        slot = max(0, min(x * DAY_SLOTS // w, DAY_SLOTS - 1))
+        for d in range(0, 8):                                      # nearest recorded slot (history can have gaps)
+            for cand in (slot - d, slot + d):
+                if 0 <= cand < DAY_SLOTS and sts[cand]:
+                    slot = cand
+                    break
+            else:
+                continue
+            break
+        if not sts[slot]:
+            return
+        tm = tz.local(sts[slot])
+
+        def v(arr, scale, unit):
+            return "--" if arr[slot] == NONE else "%.*f%s" % (1 if scale == 10 else 1, arr[slot] / scale, unit)
+        self.tip.set_text("%02d:%02d   Battery %s   Solar %s   Load %s\nImport %s   Export %s" % (
+            tm[3], tm[4], v(soc, 10, "%"), v(solar, 10, " kW"), v(load, 10, " kW"), v(gimp, 10, " kW"), v(gexp, 10, " kW")))
+        self.cursor.set_pos(slot * w // DAY_SLOTS, 0)
+        self.cursor.remove_flag(lv.obj.FLAG.HIDDEN)
+        self.tip.remove_flag(lv.obj.FLAG.HIDDEN)
+        self.tip.align(lv.ALIGN.TOP_LEFT if x > w // 2 else lv.ALIGN.TOP_RIGHT, 8 if x > w // 2 else -8, 6)
+        if self.tip_timer:
+            self.tip_timer.delete()
+        self.tip_timer = lv.timer_create(lambda t: self.hide_tip(), 6000, None)
+        self.tip_timer.set_repeat_count(1)
+
+    def hide_tip(self):
+        if self.tip_timer:
+            self.tip_timer.delete()
+            self.tip_timer = None
+        try:
+            self.tip.add_flag(lv.obj.FLAG.HIDDEN)
+            self.cursor.add_flag(lv.obj.FLAG.HIDDEN)
+        except Exception:
+            pass                                       # page was rebuilt meanwhile
 
     def feed(self, chart, ser, vals):
         """Hand a series to LVGL as one int32 array (no copy, no per-point calls); the array is kept alive by the page."""

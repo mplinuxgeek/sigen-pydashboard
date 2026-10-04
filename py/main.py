@@ -75,8 +75,8 @@ def _placeholder(name):
 
 
 def _dashboard(parent, shell):
-    d = Dashboard(app, parent, on_wifi_icon=lambda: shell.go_name("WiFi"),
-                  on_modbus_icon=lambda: shell.go_name("Settings"))
+    from ui import popups
+    d = Dashboard(app, parent, on_clock=lambda: popups.brightness(app, shell), on_status=lambda: popups.status(app, shell))
     app.services["dashboard"] = d
     state.data_cb.append(d.refresh)
     state.alive_cb.append(lambda a: d.active and d.paint_icons())
