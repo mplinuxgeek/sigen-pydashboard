@@ -78,7 +78,10 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(self.s(grid_kw=-0.1, batt_kw=0.1)[0], "Idle")
 
     def test_self_powered_only_when_it_fits(self):
-        self.assertIn("100% self-powered today", self.s(batt_kw=-3, self_pct=100)[0])
+        self.assertIn("100% self-powered today", self.s(self_pct=100)[0])                    # "Idle | ..." has room for it
+        self.assertTrue(self.s(batt_kw=-3, self_pct=100)[0].endswith("100% self-powered"))   # too long with "today": drop it
+        self.assertTrue(all(len(self.s(batt_kw=b, pv_kw=p, grid_kw=g, self_pct=100)[0]) <= max(P.FIT_CHARS, 36)
+                            for b, p, g in ((-3, 0, 0), (0, 2, 0), (0, 0, 0), (5, 0, 13.4), (0, 3, -12.3))))
         self.assertNotIn("self-powered", self.s(grid_kw=13.4, batt_kw=18.3, self_pct=100)[0])
 
 

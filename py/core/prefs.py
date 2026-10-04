@@ -6,6 +6,7 @@ from . import settings
 
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+FIT_CHARS = 40                         # characters the summary label shows without being cut off (landscape bar, 16 pt)
 NOISE_KW = 0.15                        # flows below this are meter noise, not "importing"
 STALE_S = 100                          # a poll cycle is ~35 s: three missed cycles make the data stale
 
@@ -48,7 +49,7 @@ def fmt_kw(v, decimals=2):
 
 def summary(alive, age_s, soc, batt_kw, pv_kw, load_kw, grid_kw, grid_on, self_pct, dec=1):
     """One sentence for the dashboard bar and its tone: ("ok" | "warn" | "bad" | "idle"). self_pct is today's share of the load
-    met without the grid (None = unknown). Keep it short: the bar has room for roughly 44 characters."""
+    met without the grid (None = unknown). Keep it short: the bar has room for FIT_CHARS characters."""
     if age_s is None:
         return "Waiting for the inverter...", "idle"
     if not alive or age_s > STALE_S:
@@ -66,8 +67,11 @@ def summary(alive, age_s, soc, batt_kw, pv_kw, load_kw, grid_kw, grid_on, self_p
         main = "Running on solar"
     else:
         main = "Idle"
-    if self_pct is not None and len(main) + 26 <= 44:       # "| 100% self-powered today" (the share of today's load met without the grid)
-        main += " | %d%% self-powered today" % self_pct
+    if self_pct is not None:                                 # the share of today's load met without the grid, if it fits
+        for tail in (" | %d%% self-powered today", " | %d%% self-powered"):
+            if len(main) + len(tail % self_pct) <= FIT_CHARS:
+                main += tail % self_pct
+                break
     return main, "ok"
 
 

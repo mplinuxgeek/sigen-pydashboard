@@ -152,6 +152,7 @@ class Dashboard:
         else:
             self.t_sum = label(bar, 236, 10, LEFT, font(16), LABEL, "", 356)
         self.t_sum.set_long_mode(lv.label.LONG_MODE.DOTS)
+        self.t_sum.set_height(22)                      # one line: DOTS only truncates when the height is fixed, otherwise it wraps
         for obj, cb in ((left, self.on_clock), (right, self.on_status)):
             if cb:
                 obj.add_flag(lv.obj.FLAG.CLICKABLE)
